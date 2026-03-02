@@ -437,6 +437,7 @@
   /* ── State ────────────────────────────── */
   let ws, isRecording = false;
   let timerInterval, seconds = 0, totalCount = 0;
+  let recordingStartTime = 0;
   const transcriptionStore = new Map(); // id → full data
 
   /* ── Waveform ─────────────────────────── */
@@ -473,6 +474,8 @@
         case 'transcription_complete': completeCard(msg); break;
         case 'transcription_error':  errorCard(msg.id, msg.message); break;
         case 'model_changed':        syncModel(msg.model); break;
+        case 'ping':                 send({ type: 'pong' }); break;
+        case 'recording_stopped':    setRecording(false); toast(msg.message, true); break;
         case 'error':                toast(msg.message, true); break;
       }
     };
@@ -507,9 +510,13 @@
       statusPill.textContent = 'Gravando';
       statusPill.className = 'status-pill recording';
       seconds = 0;
+      recordingStartTime = Date.now();
       timerEl.textContent = '00:00';
       clearInterval(timerInterval);
-      timerInterval = setInterval(() => { seconds++; timerEl.textContent = fmt(seconds); }, 1000);
+      timerInterval = setInterval(() => {
+        seconds = Math.floor((Date.now() - recordingStartTime) / 1000);
+        timerEl.textContent = fmt(seconds);
+      }, 500);
     } else {
       clearInterval(timerInterval);
       statusPill.textContent = 'Pronto';

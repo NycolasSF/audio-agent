@@ -77,6 +77,7 @@ class AudioRecorder:
                 data = self._stream.read(CHUNK, exception_on_overflow=False)
                 self.frames.append(data)
             except Exception:
+                self.is_recording = False  # sinaliza queda para o servidor detectar
                 break
 
     def stop(self) -> dict:
@@ -87,7 +88,7 @@ class AudioRecorder:
         duration = time.time() - self.start_time
 
         if self.thread:
-            self.thread.join(timeout=2)
+            self.thread.join(timeout=10)
 
         if self._stream:
             self._stream.stop_stream()

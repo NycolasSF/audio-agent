@@ -136,9 +136,21 @@ async def websocket_endpoint(ws: WebSocket):
         "device": DEVICE,
     })
 
+    was_recording = False
     try:
         while True:
-            data = await ws.receive_json()
+            try:
+                data = await asyncio.wait_for(ws.receive_json(), timeout=25.0)
+            except asyncio.TimeoutError:
+                await ws.send_json({"type": "ping"})
+                if was_recording and not recorder.is_recording:
+                    was_recording = False
+                    await ws.send_json({
+                        "type": "recording_stopped",
+                        "message": "Gravação interrompida inesperadamente",
+                    })
+                continue
+
             if data.get("type") != "action":
                 continue
 
@@ -151,10 +163,13 @@ async def websocket_endpoint(ws: WebSocket):
                     "recording": recorder.is_recording,
                     "message": result["message"],
                 })
-                if not result["success"]:
+                if result["success"]:
+                    was_recording = True
+                else:
                     await ws.send_json({"type": "error", "message": result["message"]})
 
             elif action == "stop":
+                was_recording = False
                 stop_result = await run_in_thread(recorder.stop)
                 await ws.send_json({
                     "type": "status",
