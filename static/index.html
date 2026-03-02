@@ -452,6 +452,34 @@
     waveform.appendChild(b);
   });
 
+  /* ── Sons & Notificações ──────────────── */
+  function playTone(freq, dur, type = 'sine', vol = 0.25) {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(vol, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + dur);
+      osc.start();
+      osc.stop(ctx.currentTime + dur);
+    } catch(e) {}
+  }
+
+  function soundStart() { playTone(440,.08); setTimeout(()=>playTone(880,.12),80); }
+  function soundStop()  { playTone(880,.08); setTimeout(()=>playTone(440,.12),80); }
+  function soundDone()  { playTone(523,.1);  setTimeout(()=>playTone(784,.2),110); }
+  function soundError() { playTone(200,.35,'square',.2); }
+
+  function notify(title, body) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    const n = new Notification(title, { body, silent: true });
+    setTimeout(() => n.close(), 6000);
+  }
+
   /* ── WebSocket ────────────────────────── */
   function connect() {
     ws = new WebSocket(`ws://${location.host}/ws`);
@@ -471,12 +499,28 @@
         case 'status':               handleStatus(msg); break;
         case 'transcription_start':  createPendingCard(msg); break;
         case 'transcription_progress': updateProgress(msg.id, msg.percent); break;
-        case 'transcription_complete': completeCard(msg); break;
-        case 'transcription_error':  errorCard(msg.id, msg.message); break;
+        case 'transcription_complete':
+          soundDone();
+          notify('Transcrição concluída', autoTitle(msg.text, '') || msg.text?.slice(0, 80) || '');
+          completeCard(msg);
+          break;
+        case 'transcription_error':
+          soundError();
+          notify('Erro na transcrição', msg.message);
+          errorCard(msg.id, msg.message);
+          break;
         case 'model_changed':        syncModel(msg.model); break;
         case 'ping':                 send({ type: 'pong' }); break;
-        case 'recording_stopped':    setRecording(false); toast(msg.message, true); break;
-        case 'error':                toast(msg.message, true); break;
+        case 'recording_stopped':
+          soundError();
+          notify('Gravação interrompida', msg.message);
+          setRecording(false);
+          toast(msg.message, true);
+          break;
+        case 'error':
+          soundError();
+          toast(msg.message, true);
+          break;
       }
     };
   }
@@ -491,6 +535,7 @@
     if (msg.recording) {
       setRecording(true);
     } else {
+      if (isRecording) soundStop();
       setRecording(false);
     }
     if (msg.message) deviceLblSpan.textContent = msg.message;
@@ -507,6 +552,7 @@
     recBtn.classList.toggle('recording', active);
     waveform.classList.toggle('active', active);
     if (active) {
+      soundStart();
       statusPill.textContent = 'Gravando';
       statusPill.className = 'status-pill recording';
       seconds = 0;
@@ -525,6 +571,9 @@
   }
 
   recBtn.onclick = () => {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
     send({ type: 'action', action: isRecording ? 'stop' : 'start' });
   };
 
