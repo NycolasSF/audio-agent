@@ -1,0 +1,19 @@
+# Áudio gravado
+recordings/
+*.wav
+
+# Transcrições salvas localmente
+transcriptions/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Ambiente
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

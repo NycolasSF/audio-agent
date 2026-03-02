@@ -1,0 +1,6 @@
+fastapi
+uvicorn[standard]
+pyaudiowpatch
+openai-whisper
+python-dotenv
+torch
