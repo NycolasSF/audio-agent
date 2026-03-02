@@ -16,6 +16,11 @@ Aplicação web para **gravação de áudio do sistema** e **transcrição autom
 - Títulos editáveis gerados automaticamente a partir do texto
 - Exportação por card: `.txt`, `.md` (com timestamps), `.vtt`, `.pdf`
 - Exclusão individual de transcrições
+- **Timer preciso** — baseado em `Date.now()`, continua correto mesmo com a aba em background
+- **WebSocket com heartbeat** — ping/pong a cada 25s para manter conexão estável em gravações longas
+- **Detecção de queda** — notifica automaticamente se a gravação for interrompida de forma inesperada
+- **Sons** (Web Audio API) — bipe ao iniciar/parar, ding ao concluir transcrição, alerta em erros
+- **Notificações do sistema** — alertas nativos do OS para transcrição concluída e erros, mesmo com a aba minimizada
 
 ---
 
