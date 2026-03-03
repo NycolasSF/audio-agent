@@ -1,0 +1,156 @@
+import json
+from datetime import datetime
+from typing import List, Optional
+
+from core.interfaces.repo import TranscriptionRepo
+from infra.db import get_connection
+
+
+def _now() -> str:
+    return datetime.now().isoformat()
+
+
+def _row_to_dict(row) -> dict:
+    d = dict(row)
+    if isinstance(d.get("segments"), str):
+        try:
+            d["segments"] = json.loads(d["segments"])
+        except Exception:
+            d["segments"] = []
+    return d
+
+
+class SQLiteRepo(TranscriptionRepo):
+
+    def create_job(self, data: dict) -> str:
+        conn = get_connection()
+        try:
+            now = _now()
+            conn.execute(
+                """
+                INSERT INTO jobs
+                  (id, status, title, source, file_path, model, device,
+                   timestamp, duration, percent, text, language, segments,
+                   error, created_at, updated_at)
+                VALUES
+                  (:id, :status, :title, :source, :file_path, :model, :device,
+                   :timestamp, :duration, :percent, :text, :language, :segments,
+                   :error, :created_at, :updated_at)
+                """,
+                {
+                    "id": data["id"],
+                    "status": data.get("status", "pending"),
+                    "title": data.get("title", ""),
+                    "source": data.get("source", ""),
+                    "file_path": data.get("file_path"),
+                    "model": data["model"],
+                    "device": data.get("device"),
+                    "timestamp": data["timestamp"],
+                    "duration": data.get("duration", 0.0),
+                    "percent": data.get("percent", 0),
+                    "text": data.get("text"),
+                    "language": data.get("language"),
+                    "segments": json.dumps(data["segments"]) if data.get("segments") is not None else None,
+                    "error": data.get("error"),
+                    "created_at": data.get("created_at", now),
+                    "updated_at": now,
+                },
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return data["id"]
+
+    def update_progress(self, job_id: str, pct: int) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE jobs SET percent=?, updated_at=? WHERE id=?",
+                (pct, _now(), job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def mark_processing(self, job_id: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='processing', percent=0, updated_at=? WHERE id=?",
+                (_now(), job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def mark_done(self, job_id: str, result: dict) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                """
+                UPDATE jobs
+                SET status='done', percent=100, text=?, language=?,
+                    segments=?, error=NULL, updated_at=?
+                WHERE id=?
+                """,
+                (
+                    result.get("text"),
+                    result.get("language"),
+                    json.dumps(result.get("segments", [])),
+                    _now(),
+                    job_id,
+                ),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def mark_error(self, job_id: str, error: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE jobs SET status='error', error=?, updated_at=? WHERE id=?",
+                (error, _now(), job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def get_job(self, job_id: str) -> Optional[dict]:
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT * FROM jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            return _row_to_dict(row) if row else None
+        finally:
+            conn.close()
+
+    def list_jobs(self, limit: int = 200) -> List[dict]:
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at ASC LIMIT ?", (limit,)
+            ).fetchall()
+            return [_row_to_dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def update_title(self, job_id: str, title: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE jobs SET title=?, updated_at=? WHERE id=?",
+                (title, _now(), job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def delete_job(self, job_id: str) -> None:
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM jobs WHERE id=?", (job_id,))
+            conn.commit()
+        finally:
+            conn.close()
