@@ -4,3 +4,4 @@ pyaudiowpatch
 openai-whisper
 python-dotenv
 torch
+python-multipart
