@@ -1,18 +1,21 @@
 import asyncio
 import json
 import os
+import re
 import shutil
 import uuid
 import wave
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlparse
 
+import httpx
 import torch
 from dotenv import load_dotenv
 load_dotenv()
 
-from fastapi import FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import BackgroundTasks, FastAPI, File, Form, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.responses import HTMLResponse, JSONResponse
 from pydantic import BaseModel
 
@@ -298,8 +301,26 @@ ALLOWED_EXTENSIONS = {".mp3", ".mp4", ".wav", ".m4a", ".ogg", ".webm", ".flac"}
 RECORDINGS_DIR = Path("recordings")
 
 
-def _get_wav_duration(file_path: str) -> float:
-    """Return duration in seconds for WAV files; 0.0 for others."""
+def _get_audio_duration(file_path: str) -> float:
+    """Return duration in seconds for any audio/video file.
+    Uses ffprobe if available; falls back to wave module for pure WAV."""
+    try:
+        import subprocess
+        result = subprocess.run(
+            [
+                "ffprobe", "-v", "quiet",
+                "-show_entries", "format=duration",
+                "-of", "default=noprint_wrappers=1:nokey=1",
+                file_path,
+            ],
+            capture_output=True, text=True, timeout=15,
+        )
+        val = result.stdout.strip()
+        if val and val != "N/A":
+            return round(float(val), 1)
+    except Exception:
+        pass
+    # WAV fallback (no FFmpeg dependency)
     try:
         if file_path.endswith(".wav"):
             with wave.open(file_path, "rb") as wf:
@@ -386,7 +407,7 @@ async def upload_file(file: UploadFile = File(...), model: str = Form("base")):
     with open(dest_path, "wb") as out:
         shutil.copyfileobj(file.file, out)
 
-    duration = _get_wav_duration(dest_path)
+    duration = _get_audio_duration(dest_path)
 
     # Launch transcription in background thread (no WebSocket needed)
     loop = asyncio.get_event_loop()
@@ -406,6 +427,194 @@ async def upload_file(file: UploadFile = File(...), model: str = Form("base")):
     }
 
 
+# ── URL Import ─────────────────────────────────────────────────────────────
+YOUTUBE_RE = re.compile(
+    r"(https?://)?(www\.)?(youtube\.com|youtu\.be|music\.youtube\.com)/",
+    re.IGNORECASE,
+)
+DRIVE_RE = re.compile(r"https?://drive\.google\.com/", re.IGNORECASE)
+
+
+def _is_ytdlp_source(url: str) -> bool:
+    return bool(YOUTUBE_RE.search(url) or DRIVE_RE.search(url))
+
+
+def _download_with_ytdlp(url: str, dest_path: str) -> str:
+    """Download audio via yt-dlp. Returns the actual file path written."""
+    import yt_dlp  # lazy import — only used when needed
+
+    stem = dest_path.rsplit(".", 1)[0]  # strip ext placeholder
+    ydl_opts = {
+        "format": "bestaudio/best",
+        "outtmpl": stem + ".%(ext)s",
+        "quiet": True,
+        "no_warnings": True,
+        "postprocessors": [
+            {
+                "key": "FFmpegExtractAudio",
+                "preferredcodec": "mp3",
+                "preferredquality": "128",
+            }
+        ],
+    }
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+
+    # yt-dlp writes <stem>.mp3 after post-processing
+    candidate = stem + ".mp3"
+    if os.path.exists(candidate):
+        return candidate
+    # Fallback: look for any file matching stem.*
+    parent = Path(stem).parent
+    base = Path(stem).name
+    for f in parent.iterdir():
+        if f.stem == base and f.suffix.lower() in {".mp3", ".m4a", ".webm", ".ogg"}:
+            return str(f)
+    raise FileNotFoundError(f"yt-dlp output not found for {url}")
+
+
+def _download_direct(url: str, dest_path: str) -> str:
+    """Stream-download a direct audio/video URL. Returns dest_path."""
+    with httpx.stream("GET", url, follow_redirects=True, timeout=60) as r:
+        r.raise_for_status()
+        with open(dest_path, "wb") as f:
+            for chunk in r.iter_bytes(chunk_size=65536):
+                f.write(chunk)
+    return dest_path
+
+
+def _import_url_background(card_id: str, url: str, model_name: str, timestamp: str):
+    """Download + transcribe a URL in a background thread."""
+    RECORDINGS_DIR.mkdir(exist_ok=True)
+    _active_progress[card_id] = 0
+
+    try:
+        if _is_ytdlp_source(url):
+            placeholder = str(RECORDINGS_DIR / f"import_{card_id}.mp3")
+            file_path = _download_with_ytdlp(url, placeholder)
+        else:
+            # Guess extension from URL path
+            parsed = urlparse(url)
+            ext = Path(parsed.path).suffix.lower() or ".mp3"
+            if ext not in ALLOWED_EXTENSIONS:
+                ext = ".mp3"
+            file_path = str(RECORDINGS_DIR / f"import_{card_id}{ext}")
+            _download_direct(url, file_path)
+
+        duration = _get_audio_duration(file_path)
+
+        def progress_cb(pct: int):
+            _active_progress[card_id] = pct
+
+        result = transcribe_with_progress(file_path, model_name, DEVICE, progress_cb)
+        if result["success"]:
+            persist_transcription({
+                "id": card_id,
+                "text": result["text"],
+                "language": result["language"],
+                "segments": result["segments"],
+                "timestamp": timestamp,
+                "duration": duration,
+                "model": model_name,
+                "device": DEVICE,
+                "title": "",
+                "file": file_path,
+                "source": url,
+            })
+        else:
+            persist_transcription({
+                "id": card_id,
+                "text": "",
+                "language": "?",
+                "segments": [],
+                "timestamp": timestamp,
+                "duration": 0.0,
+                "model": model_name,
+                "device": DEVICE,
+                "title": "",
+                "file": file_path,
+                "source": url,
+                "error": result.get("error", "Erro desconhecido"),
+            })
+    except Exception as e:
+        persist_transcription({
+            "id": card_id,
+            "text": "",
+            "language": "?",
+            "segments": [],
+            "timestamp": timestamp,
+            "duration": 0.0,
+            "model": model_name,
+            "device": DEVICE,
+            "title": "",
+            "file": "",
+            "source": url,
+            "error": str(e),
+        })
+    finally:
+        _active_progress.pop(card_id, None)
+
+
+@app.post("/import-url")
+async def import_url_endpoint(
+    background_tasks: BackgroundTasks,
+    url: str = Form(...),
+    model: str = Form("base"),
+):
+    """Import audio from a YouTube, Google Drive, or direct audio/video URL."""
+    url = url.strip()
+    if not url:
+        return JSONResponse({"error": "URL não pode ser vazia"}, status_code=400)
+
+    # Basic validation: must look like a URL
+    if not url.startswith(("http://", "https://")):
+        return JSONResponse(
+            {"error": "URL inválida. Use http:// ou https://."},
+            status_code=400,
+        )
+
+    # For direct URLs, check the extension
+    if not _is_ytdlp_source(url):
+        parsed = urlparse(url)
+        ext = Path(parsed.path).suffix.lower()
+        if ext and ext not in ALLOWED_EXTENSIONS:
+            return JSONResponse(
+                {
+                    "error": (
+                        f"Formato não suportado: {ext}. "
+                        f"Use: {', '.join(sorted(ALLOWED_EXTENSIONS))} "
+                        "ou um link de YouTube/Drive."
+                    )
+                },
+                status_code=400,
+            )
+
+    if model not in VALID_MODELS:
+        model = WHISPER_MODEL
+
+    card_id = uuid.uuid4().hex[:8]
+    timestamp = datetime.now().strftime("%H:%M:%S")
+
+    # Use FastAPI BackgroundTasks for reliable background execution
+    background_tasks.add_task(_import_url_background, card_id, url, model, timestamp)
+
+    # Derive a display name from the URL
+    parsed = urlparse(url)
+    display_name = parsed.netloc + parsed.path
+    if len(display_name) > 60:
+        display_name = display_name[:57] + "..."
+
+    return {
+        "id": card_id,
+        "status": "processing",
+        "source": url,
+        "display_name": display_name,
+        "timestamp": timestamp,
+        "model": model,
+        "device": DEVICE,
+    }
+
+
 @app.get("/")
 async def root():
     with open("static/index.html", encoding="utf-8") as f:
@@ -415,4 +624,3 @@ async def root():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-

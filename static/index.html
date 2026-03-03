@@ -943,6 +943,158 @@
         color: var(--accent);
       }
 
+      /* PER-TAB REC CONTROLS */
+      .src-rec-btn {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+        padding: 3px 9px;
+        border-radius: 30px;
+        border: 1px solid var(--border2);
+        background: none;
+        color: var(--text-dim);
+        font-size: 0.7rem;
+        font-weight: 700;
+        cursor: pointer;
+        transition: all 0.2s;
+        flex-shrink: 0;
+        font-family: inherit;
+        letter-spacing: 0.04em;
+      }
+      .src-rec-btn:hover {
+        border-color: var(--record);
+        color: var(--record);
+        background: var(--record-dim);
+      }
+      .src-rec-btn.rec-active {
+        border-color: var(--record);
+        color: var(--record);
+        background: var(--record-dim);
+        animation: rec-pulse 1.4s ease-in-out infinite;
+      }
+      @keyframes rec-pulse {
+        0%, 100% { box-shadow: 0 0 0 0 var(--record-glow); }
+        50% { box-shadow: 0 0 0 5px transparent; }
+      }
+      .src-rec-dot {
+        width: 6px;
+        height: 6px;
+        border-radius: 50%;
+        background: currentColor;
+        flex-shrink: 0;
+      }
+      .src-rec-btn.rec-active .src-rec-dot {
+        animation: dot-blink 1s step-end infinite;
+      }
+      @keyframes dot-blink {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0; }
+      }
+      .src-rec-time {
+        font-size: 0.7rem;
+        font-weight: 700;
+        font-variant-numeric: tabular-nums;
+        color: var(--record);
+        letter-spacing: 0.04em;
+        flex-shrink: 0;
+        min-width: 36px;
+        text-align: right;
+      }
+
+      /* LINK MODAL */
+      .link-input-wrap {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+      .link-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .link-input {
+        flex: 1;
+        background: var(--glass2);
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 0.82rem;
+        padding: 9px 12px;
+        font-family: inherit;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .link-input:focus {
+        border-color: var(--accent);
+      }
+      .link-input::placeholder {
+        color: var(--text-muted);
+      }
+      .link-type-badge {
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 5px;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        flex-shrink: 0;
+        background: var(--glass);
+        border: 1px solid var(--border);
+        color: var(--text-muted);
+        min-width: 36px;
+        text-align: center;
+      }
+      .link-type-badge.yt {
+        background: rgba(255,0,0,0.1);
+        border-color: rgba(255,0,0,0.3);
+        color: #ff4444;
+      }
+      .link-type-badge.drive {
+        background: rgba(0,229,160,0.1);
+        border-color: rgba(0,229,160,0.3);
+        color: var(--green);
+      }
+      .link-type-badge.url {
+        background: var(--accent-dim);
+        border-color: rgba(159,95,255,0.3);
+        color: var(--accent);
+      }
+      .rm-link-btn {
+        background: none;
+        border: none;
+        color: var(--text-muted);
+        cursor: pointer;
+        font-size: 1rem;
+        line-height: 1;
+        padding: 4px;
+        border-radius: 5px;
+        transition: color 0.2s;
+        flex-shrink: 0;
+      }
+      .rm-link-btn:hover { color: var(--record); }
+      .add-link-btn {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: none;
+        border: 1px dashed var(--border2);
+        border-radius: 9px;
+        color: var(--text-dim);
+        font-size: 0.78rem;
+        font-weight: 600;
+        padding: 7px 12px;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-family: inherit;
+        width: 100%;
+        justify-content: center;
+        margin-top: 2px;
+      }
+      .add-link-btn:hover {
+        border-color: var(--accent);
+        color: var(--accent);
+      }
+
       /* TOAST */
       #toast {
         position: fixed;
@@ -1065,6 +1217,20 @@
               <line x1="12" y1="3" x2="12" y2="15" />
             </svg>
             Arquivo
+          </button>
+          <button class="pill" id="pill-link" onclick="openLinkModal()">
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.5"
+            >
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+            </svg>
+            Link
           </button>
         </div>
 
@@ -1201,6 +1367,22 @@
       </div>
     </div>
 
+    <!-- Link Import Modal -->
+    <div class="modal-overlay" id="link-modal">
+      <div class="upload-sheet">
+        <div class="sheet-title">Importar Links</div>
+        <div class="link-input-wrap" id="link-rows"></div>
+        <button class="add-link-btn" onclick="addLinkRow()">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Adicionar outro link
+        </button>
+        <div class="sheet-actions" style="margin-top:16px">
+          <button class="btn-outline" onclick="closeLinkModal()">Cancelar</button>
+          <button class="btn-primary" id="btn-import-links" onclick="submitLinks()">Importar</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Detail Panel -->
     <div class="detail-overlay" id="detail-overlay" onclick="onDetailOverlayClick(event)">
       <div class="detail-panel" id="detail-panel">
@@ -1295,12 +1477,9 @@
       let totalCount = 0;
       const store = new Map(); // id → full data
 
-      // tab-mode state
+      // tab-mode state (each source has its own recorder)
       let tabSources = [],
-        tabCtx = null,
-        tabDest = null,
-        tabRec = null,
-        tabChunks = [];
+        tabCtx = null;
       const pollingTimers = new Map(); // id → interval id
 
       // === WAVEFORM ===
@@ -1456,17 +1635,10 @@
       }
 
       recBtn.onclick = () => {
+        if (currentMode !== "sistema") return; // disabled in abas mode
         if ("Notification" in window && Notification.permission === "default")
           Notification.requestPermission();
-        if (currentMode === "sistema") {
-          send({ type: "action", action: isRecording ? "stop" : "start" });
-        } else if (currentMode === "abas") {
-          if (isRecording) {
-            stopTabMode();
-          } else {
-            startTabMode();
-          }
-        }
+        send({ type: "action", action: isRecording ? "stop" : "start" });
       };
       modelSel.onchange = () =>
         send({ type: "action", action: "change_model", model: modelSel.value });
@@ -1474,19 +1646,15 @@
       // === MODE PICKER ===
       function setMode(m) {
         currentMode = m;
-        document
-          .getElementById("pill-sistema")
-          .classList.toggle("active", m === "sistema");
-        document
-          .getElementById("pill-abas")
-          .classList.toggle("active", m === "abas");
+        document.getElementById("pill-sistema").classList.toggle("active", m === "sistema");
+        document.getElementById("pill-abas").classList.toggle("active", m === "abas");
         modePicker.classList.toggle("open", m === "abas");
+        // In abas mode the central rec-btn is disabled — each source has its own
+        recBtn.disabled = (m === "abas");
+        recBtn.title = m === "abas" ? "Use os botões REC individuais de cada fonte" : "";
         if (m === "abas" && !supportsTabCapture()) {
           document.getElementById("pill-abas").classList.add("disabled-pill");
-          toast(
-            "Seu browser não suporta captura de abas (use Chrome/Edge 109+)",
-            true,
-          );
+          toast("Seu browser não suporta captura de abas (use Chrome/Edge 109+)", true);
           setMode("sistema");
         }
       }
@@ -1525,14 +1693,14 @@
             rawLabel.toLowerCase().includes("entire screen") ||
             rawLabel.toLowerCase().includes("tela") ||
             rawLabel.toLowerCase().includes("screen:");
-          tabSources.push({ stream, label: pageTitle, rawLabel, isCross });
+          // Per-source AudioContext mix — each source also keeps its own mix node
+          if (!tabCtx) tabCtx = new AudioContext();
+          const srcNode = tabCtx.createMediaStreamSource(stream);
+          const dest = tabCtx.createMediaStreamDestination();
+          srcNode.connect(dest);
+          tabSources.push({ stream, label: pageTitle, rawLabel, isCross, srcNode, dest, recorder: null, chunks: [], isRecording: false });
           renderSources();
           updateCrossWarn();
-          if (!tabCtx) {
-            tabCtx = new AudioContext();
-            tabDest = tabCtx.createMediaStreamDestination();
-          }
-          tabCtx.createMediaStreamSource(stream).connect(tabDest);
         } catch (e) {
           if (e.name !== "AbortError" && e.name !== "NotAllowedError")
             toast("Erro ao capturar: " + e.message, true);
@@ -1544,63 +1712,96 @@
         tabSources.forEach((s, i) => {
           const el = document.createElement("div");
           el.className = "source-item";
+          el.id = "src-item-" + i;
+          const recActive = s.isRecording;
+          const elapsed = s.elapsed || 0;
           el.innerHTML = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/></svg>
       <span class="src-name">${escHtml(s.label)}</span>
-      ${s.isCross ? '<span class="src-warn" title="Áudio continuará tocando nos speakers">⚠ outro browser</span>' : ""}
-      <button class="rm-src" onclick="removeSource(${i})">✕</button>`;
+      ${s.isCross ? '<span class="src-warn" title="Áudio continuará tocando nos speakers">⚠ outro browser</span>' : ''}
+      ${recActive ? `<span class="src-rec-time" id="src-timer-${i}">${fmt(elapsed)}</span>` : ''}
+      <button class="src-rec-btn${recActive ? ' rec-active' : ''}" onclick="toggleSourceRec(${i})">
+        <span class="src-rec-dot"></span>${recActive ? 'STOP' : 'REC'}
+      </button>
+      <button class="rm-src" onclick="removeSource(${i})" ${recActive ? 'disabled title="Pare a gravação antes de remover"' : ''}>✕</button>`;
           sourcesList.appendChild(el);
         });
       }
 
+      function toggleSourceRec(i) {
+        const s = tabSources[i];
+        if (s.isRecording) {
+          stopSourceRec(i);
+        } else {
+          startSourceRec(i);
+        }
+      }
+
+      function startSourceRec(i) {
+        const s = tabSources[i];
+        if (!s.dest) return;
+        if ("Notification" in window && Notification.permission === "default")
+          Notification.requestPermission();
+        s.chunks = [];
+        s.elapsed = 0;
+        s.recStart = Date.now();
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus" : "audio/webm";
+        s.recorder = new MediaRecorder(s.dest.stream, { mimeType });
+        s.recorder.ondataavailable = (e) => { if (e.data.size > 0) s.chunks.push(e.data); };
+        s.recorder.onstop = () => {
+          // Use source label (= page title) as the filename — strip any unsafe chars
+          const filename = s.label.replace(/[<>:"/\\|?*]/g, '_') + '.webm';
+          uploadBlob(new Blob(s.chunks, { type: "audio/webm" }), filename);
+          s.chunks = [];
+        };
+        s.recorder.start(1000);
+        s.isRecording = true;
+        sndStart();
+        renderSources();
+        // Tick the per-source timer every second
+        s.timerInterval = setInterval(() => {
+          s.elapsed = Math.floor((Date.now() - s.recStart) / 1000);
+          const el = document.getElementById('src-timer-' + i);
+          if (el) el.textContent = fmt(s.elapsed);
+        }, 1000);
+      }
+
+      function stopSourceRec(i) {
+        const s = tabSources[i];
+        if (s.recorder && s.recorder.state !== "inactive") s.recorder.stop();
+        clearInterval(s.timerInterval);
+        s.recorder = null;
+        s.isRecording = false;
+        s.elapsed = 0;
+        sndStop();
+        renderSources();
+      }
+
+      // Removed updateGlobalRecState — central orb is NOT activated in abas mode
+
       function removeSource(i) {
-        tabSources[i].stream.getTracks().forEach((t) => t.stop());
+        const s = tabSources[i];
+        if (s.isRecording) { toast("Pare a gravação antes de remover a fonte", true); return; }
+        s.stream.getTracks().forEach((t) => t.stop());
         tabSources.splice(i, 1);
         renderSources();
         updateCrossWarn();
       }
 
       function updateCrossWarn() {
-        crossWarn.style.display = tabSources.some((s) => s.isCross)
-          ? "block"
-          : "none";
+        crossWarn.style.display = tabSources.some((s) => s.isCross) ? "block" : "none";
       }
 
-      function startTabMode() {
-        if (tabSources.length === 0) {
-          toast("Adicione ao menos uma fonte de aba primeiro", true);
-          return;
-        }
-        tabChunks = [];
-        tabRec = new MediaRecorder(tabDest.stream, {
-          mimeType: MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-            ? "audio/webm;codecs=opus"
-            : "audio/webm",
-        });
-        tabRec.ondataavailable = (e) => {
-          if (e.data.size > 0) tabChunks.push(e.data);
-        };
-        // Build meaningful filename from tab titles
-        const tabTitle = tabSources.map(s => s.label).join(' + ');
-        tabRec.onstop = () =>
-          uploadBlob(new Blob(tabChunks, { type: "audio/webm" }), tabTitle + '.webm');
-        tabRec.start(1000);
-        sndStart();
-        setRec(true);
-      }
-
+      // Legacy stubs (no longer used but keep for safety)
+      function startTabMode() {}
       function stopTabMode() {
-        if (tabRec && tabRec.state !== "inactive") tabRec.stop();
-        tabSources.forEach((s) =>
-          s.stream.getTracks().forEach((t) => t.stop()),
-        );
+        tabSources.forEach((s, i) => { if (s.isRecording) stopSourceRec(i); });
+        tabSources.forEach((s) => s.stream.getTracks().forEach((t) => t.stop()));
         tabSources = [];
-        tabCtx = null;
-        tabDest = null;
-        tabRec = null;
+        if (tabCtx) { tabCtx.close(); tabCtx = null; }
         renderSources();
         updateCrossWarn();
-        sndStop();
-        setRec(false);
+        // Central orb stays neutral in abas mode
       }
 
       async function uploadBlob(blob, originalName = "gravacao-abas.webm") {
@@ -1621,7 +1822,93 @@
         }
       }
 
-      // === UPLOAD MODAL ===
+      // === LINK IMPORT MODAL ===
+      const YOUTUBE_PATTERN = /youtube\.com|youtu\.be|music\.youtube\.com/i;
+      const DRIVE_PATTERN = /drive\.google\.com/i;
+
+      function detectLinkType(url) {
+        if (YOUTUBE_PATTERN.test(url)) return 'yt';
+        if (DRIVE_PATTERN.test(url)) return 'drive';
+        if (url.startsWith('http')) return 'url';
+        return '';
+      }
+
+      function openLinkModal() {
+        document.getElementById("link-modal").classList.add("open");
+        const rows = document.getElementById("link-rows");
+        if (!rows.children.length) addLinkRow();
+      }
+
+      function closeLinkModal() {
+        document.getElementById("link-modal").classList.remove("open");
+        document.getElementById("link-rows").innerHTML = "";
+      }
+
+      function addLinkRow() {
+        const rows = document.getElementById("link-rows");
+        const idx = rows.children.length;
+        const row = document.createElement("div");
+        row.className = "link-row";
+        row.id = "link-row-" + idx;
+        row.innerHTML = `
+          <span class="link-type-badge" id="link-badge-${idx}">URL</span>
+          <input class="link-input" id="link-input-${idx}" type="text"
+            placeholder="https://youtube.com/... ou URL de áudio"
+            oninput="onLinkInput(${idx})"
+          />
+          <button class="rm-link-btn" onclick="removeLinkRow(${idx})" title="Remover">✕</button>
+        `;
+        rows.appendChild(row);
+        document.getElementById("link-input-" + idx).focus();
+      }
+
+      function removeLinkRow(idx) {
+        const row = document.getElementById("link-row-" + idx);
+        if (row) row.remove();
+      }
+
+      function onLinkInput(idx) {
+        const val = (document.getElementById("link-input-" + idx) || {}).value || '';
+        const badge = document.getElementById("link-badge-" + idx);
+        if (!badge) return;
+        const type = detectLinkType(val.trim());
+        badge.className = 'link-type-badge' + (type ? ' ' + type : '');
+        if (type === 'yt') badge.textContent = 'YouTube';
+        else if (type === 'drive') badge.textContent = 'Drive';
+        else if (type === 'url') badge.textContent = 'URL';
+        else badge.textContent = 'URL';
+      }
+
+      async function submitLinks() {
+        const inputs = document.querySelectorAll(".link-input");
+        const urls = [];
+        inputs.forEach(inp => { const v = inp.value.trim(); if (v) urls.push(v); });
+        if (!urls.length) { toast("Adicione ao menos um link", true); return; }
+
+        const btn = document.getElementById("btn-import-links");
+        btn.disabled = true;
+        btn.textContent = "Importando…";
+
+        closeLinkModal();
+        btn.textContent = "Importar";
+        btn.disabled = false;
+
+        for (const url of urls) {
+          const fd = new FormData();
+          fd.append("url", url);
+          fd.append("model", modelSel.value);
+          try {
+            const r = await fetch("/import-url", { method: "POST", body: fd });
+            const j = await r.json();
+            if (j.error) { toast(url.slice(0, 40) + ": " + j.error, true); continue; }
+            createRow({ ...j, source: j.display_name || url, fromUpload: true });
+            startPolling(j.id);
+          } catch (e) {
+            toast("Erro ao importar: " + e.message, true);
+          }
+        }
+      }
+
       let selectedFile = null;
       function openUploadModal() {
         document.getElementById("upload-modal").classList.add("open");
@@ -1656,6 +1943,7 @@
       }
       async function submitUpload() {
         if (!selectedFile) return;
+        const originalName = selectedFile.name; // capture before modal close nullifies it
         const fd = new FormData();
         fd.append("file", selectedFile);
         fd.append("model", modelSel.value);
@@ -1671,7 +1959,7 @@
             toast(j.error, true);
             return;
           }
-          createRow({ ...j, fromUpload: true, source: selectedFile.name });
+          createRow({ ...j, fromUpload: true, source: originalName });
           startPolling(j.id);
         } catch (e) {
           toast("Erro: " + e.message, true);
@@ -1796,6 +2084,13 @@
         store.set(msg.id, merged);
         const row = document.getElementById("row-" + msg.id);
         if (!row) return;
+
+        // Update duration cell whenever we have a real value (covers URL imports,
+        // WebSocket recordings where transcription_start sent 0, and history loads)
+        if (merged.duration > 0) {
+          const durEl = row.querySelector(".dur-val");
+          if (durEl) durEl.textContent = fmtDur(merged.duration);
+        }
 
         // Update title: use override > existing saved title > text-based auto-title
         // Never override a filename-based title with a text-based one

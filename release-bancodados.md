@@ -1,157 +1,232 @@
-# Release: Migração para SQLite
-
-## Motivação
-
-O sistema atualmente persiste todas as transcrições em `transcriptions/data.json`. Cada operação — salvar, editar título, deletar — lê e reescreve o arquivo inteiro. Isso gera três problemas sérios em escala:
-
-1. **Performance**: com 2000 transcrições (texto + segmentos), o arquivo pode ter 20–50 MB relidos e reescritos em toda operação, incluindo o polling de status a cada 2 segundos.
-2. **Race condition**: o executor tem `max_workers=2`. Se duas transcrições terminam ao mesmo tempo, a segunda sobrescreve os dados da primeira silenciosamente.
-3. **Carregamento inicial**: `GET /transcriptions` retorna todos os itens de uma vez; o frontend renderiza 2000 `<tr>` sem paginação, congelando o browser.
-
-**Requisitos de instalação: nenhum.** `sqlite3` já faz parte da biblioteca padrão do Python — nada muda no `requirements.txt`.
+# 🚀 AudioAgent — Release v2 Completa
 
 ---
 
-## Mudanças em `main.py`
+# 1️⃣ Estrutura de Pastas Oficial (Monólito Modular - Monorepo)
 
-### 1. Substituir `TRANSCRIPTIONS_FILE` por `_get_db()`
+```
+audio-agent/
+│
+├── apps/
+│   ├── api/
+│   │   ├── main.py
+│   │   ├── routes/
+│   │   └── ws/
+│   │
+│   └── worker/
+│       └── worker.py
+│
+├── core/
+│   ├── domain/
+│   ├── services/
+│   └── settings.py
+│
+├── infra/
+│   ├── repo_sqlite.py
+│   ├── queue_sqlite.py
+│   ├── storage_local.py
+│   └── benchmark.py
+│
+├── static/
+│   └── index.html
+│
+├── transcriptions/
+│   └── data.db
+│
+├── release-bancodados.md
+└── README.md
+```
+
+## Princípios
+
+- API não executa transcrição
+- Worker executa Whisper
+- Core não depende de SQLite ou FastAPI
+- Infra implementa persistência e storage
+- Sistema pronto para Postgres e S3 futuramente
+
+---
+
+# 2️⃣ Contratos de Interface (Preparação para Cloud)
+
+## Interface Repo
 
 ```python
-import sqlite3
+class TranscriptionRepo:
+    def create_job(self, data: dict): ...
+    def update_progress(self, job_id: str, progress: int): ...
+    def mark_processing(self, job_id: str): ...
+    def mark_done(self, job_id: str, result: dict): ...
+    def mark_error(self, job_id: str, error: str): ...
+    def get_job(self, job_id: str): ...
+    def list_jobs(self, limit: int, offset: int): ...
+```
 
-DB_PATH = Path("transcriptions/data.db")
+## Interface Queue
 
-def _get_db():
-    DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")  # leituras concorrentes sem bloquear escrita
-    conn.execute("""
-        CREATE TABLE IF NOT EXISTS transcriptions (
-            id        TEXT PRIMARY KEY,
-            title     TEXT DEFAULT '',
-            text      TEXT DEFAULT '',
-            language  TEXT DEFAULT '?',
-            segments  TEXT DEFAULT '[]',
-            timestamp TEXT,
-            duration  REAL DEFAULT 0.0,
-            model     TEXT,
-            device    TEXT,
-            file      TEXT,
-            source    TEXT DEFAULT '',
-            error     TEXT DEFAULT NULL
+```python
+class JobQueue:
+    def enqueue(self, job_id: str): ...
+    def next_job(self): ...
+```
+
+## Interface Storage
+
+```python
+class Storage:
+    def save_audio(self, file): ...
+    def save_export(self, job_id: str, content: bytes, ext: str): ...
+```
+
+Essas interfaces permitem trocar SQLite → Postgres e Storage Local → S3 sem alterar API ou Worker.
+
+---
+
+# 3️⃣ Worker Separado (Exemplo Simplificado)
+
+```python
+while True:
+    job = queue.next_job()
+    if not job:
+        sleep(1)
+        continue
+
+    repo.mark_processing(job.id)
+
+    start_time = now()
+
+    try:
+        result = transcribe_with_progress(
+            job.file,
+            model=job.model,
+            progress_cb=lambda p: repo.update_progress(job.id, p)
         )
-    """)
-    conn.commit()
-    return conn
+
+        repo.mark_done(job.id, result)
+
+        rtf = (now() - start_time) / job.duration
+        benchmark.save(job.model, job.device, job.duration, rtf)
+
+    except Exception as e:
+        repo.mark_error(job.id, str(e))
 ```
 
-Cada chamada abre sua própria conexão e fecha ao sair do `with` — SQLite serializa escritas automaticamente, eliminando a race condition sem lock explícito.
-
-### 2. Substituir as 4 funções de persistência
-
-| Função antiga | Nova implementação |
-|---|---|
-| `_load_all()` | removida |
-| `_save_all()` | removida |
-| `persist_transcription(entry)` | `INSERT OR REPLACE INTO transcriptions VALUES (...)` |
-| `remove_transcription(tid)` | `DELETE FROM transcriptions WHERE id = ?` |
-| `patch_transcription(tid, **fields)` | `UPDATE transcriptions SET title = ? WHERE id = ?` |
-
-O campo `segments` é serializado como JSON string (`json.dumps`) na escrita e desserializado (`json.loads`) na leitura — mantém a mesma estrutura de dados que o frontend já espera.
-
-### 3. Paginação em `GET /transcriptions`
-
-```python
-@app.get("/transcriptions")
-async def get_transcriptions(limit: int = 50, offset: int = 0):
-    with _get_db() as conn:
-        rows = conn.execute(
-            "SELECT * FROM transcriptions ORDER BY timestamp DESC LIMIT ? OFFSET ?",
-            (limit, offset)
-        ).fetchall()
-    return [dict(r) | {"segments": json.loads(r["segments"])} for r in rows]
-```
-
-### 4. `GET /transcriptions/{tid}/status` — query por ID direto
-
-```python
-@app.get("/transcriptions/{tid}/status")
-async def get_transcription_status(tid: str):
-    with _get_db() as conn:
-        row = conn.execute(
-            "SELECT * FROM transcriptions WHERE id = ?", (tid,)
-        ).fetchone()
-    if row:
-        d = dict(row)
-        d["segments"] = json.loads(d["segments"])
-        return {"status": "done", **d}
-    return JSONResponse({"status": "processing"})
-```
-
-### 5. Migração automática do `data.json` existente
-
-Na inicialização do app (antes do `uvicorn.run`), verificar:
-
-```python
-def _migrate_json_to_db():
-    json_path = Path("transcriptions/data.json")
-    if not json_path.exists() or DB_PATH.exists():
-        return
-    data = json.loads(json_path.read_text(encoding="utf-8"))
-    with _get_db() as conn:
-        for entry in data.values():
-            conn.execute(
-                "INSERT OR IGNORE INTO transcriptions VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-                (entry.get("id"), entry.get("title",""), entry.get("text",""),
-                 entry.get("language","?"), json.dumps(entry.get("segments",[])),
-                 entry.get("timestamp"), entry.get("duration",0.0),
-                 entry.get("model"), entry.get("device"),
-                 entry.get("file"), entry.get("source",""), entry.get("error"))
-            )
-        conn.commit()
-    json_path.rename(json_path.with_suffix(".json.bak"))
-    print(f"[Migração] {len(data)} transcrições migradas para SQLite. Backup: data.json.bak")
-```
+Worker roda isolado da API.
 
 ---
 
-## Mudanças em `static/index.html`
+# 4️⃣ Roadmap v3 (Escala e SaaS)
 
-### `loadHistory()` — carregamento paginado
+## Fase 1 — Local Estável
 
-```js
-let historyOffset = 0;
-const HISTORY_PAGE = 50;
+- SQLite v2 ativo
+- Worker separado
+- Modelos limitados: small, medium, large-v3
+- Benchmark RTF salvo
+- Diarização ativa
+- Speaker identification opt-in
 
-async function loadHistory() {
-    try {
-        const r = await fetch(`/transcriptions?limit=${HISTORY_PAGE}&offset=${historyOffset}`);
-        if (!r.ok) return;
-        const items = await r.json();
-        items.forEach(item => {
-            createRow(item);
-            completeRow(item, item.title || autoTitle(item.text, item.timestamp));
-        });
-        historyOffset += items.length;
-        if (items.length === HISTORY_PAGE) showLoadMoreButton();
-    } catch (e) {
-        console.warn("history error", e);
-    }
-}
-```
+## Fase 2 — Multiusuário
 
-Adicionar botão "Carregar mais" ao final da lista, visível apenas quando há mais páginas. Ao clicar, chama `loadHistory()` com `offset` já incrementado.
+Adicionar tabelas:
+- users
+- usage_minutes
+- billing
+
+Adicionar autenticação JWT.
+
+## Fase 3 — Migração Cloud
+
+Substituições diretas:
+
+| Local | Cloud |
+|-------|-------|
+| SQLite | Postgres |
+| Storage local | S3 |
+| Queue SQLite | Redis/SQS |
+| Worker local | Container GPU |
+
+Nenhuma mudança no frontend necessária.
+
+## Fase 4 — Escala Horizontal
+
+- API stateless
+- Workers GPU auto-escaláveis
+- Redis PubSub para progresso em tempo real
+- Monitoramento de fila
 
 ---
 
-## Checklist de verificação
+# 🎙️ Falantes (Diarização + Identificação Opt-In)
 
-- [ ] `python main.py` sobe sem erro; `transcriptions/data.db` é criado automaticamente
-- [ ] Gravar e transcrever → card aparece normalmente na tabela
-- [ ] Recarregar a página → histórico carrega (primeiros 50 registros)
-- [ ] Clicar "Carregar mais" → próxima página de 50 aparece
-- [ ] Editar título → persiste após recarregar
-- [ ] Excluir registro → removido do banco e da tabela
-- [ ] Se `data.json` existia → `data.json.bak` criado e dados migrados integralmente
-- [ ] Dois uploads simultâneos → ambos persistidos sem perda de dados
+## Schema Adicional
+
+### speaker_profiles
+
+```sql
+CREATE TABLE speaker_profiles (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  created_at TEXT
+);
+```
+
+### speaker_embeddings
+
+```sql
+CREATE TABLE speaker_embeddings (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  speaker_id INTEGER,
+  embedding BLOB,
+  model TEXT,
+  created_at TEXT
+);
+```
+
+### segments ganha:
+
+- speaker_label
+- speaker_id
+
+Pipeline:
+1. Diarização gera speaker_label
+2. Whisper transcreve
+3. Se perfil existir → comparar embedding
+4. Se similaridade > limiar → atribuir speaker_id
+
+---
+
+# 📊 Benchmark Oficial (RTF)
+
+## Fórmula
+
+RTF = tempo_transcrição / duração_áudio
+
+Tempo estimado = duração × RTF
+
+## Modelos Permitidos
+
+- small
+- medium
+- large-v3
+
+Qualquer outro modelo retorna erro 400.
+
+---
+
+# 🏁 Resultado Final
+
+O AudioAgent passa a ser:
+
+- Modular
+- Persistente
+- Escalável
+- Pronto para SaaS
+- Preparado para GPU cluster
+- Preparado para RAG futuro
+- Seguro quanto à identificação vocal (opt-in)
+
+---
+
+Fim da Release v2
+

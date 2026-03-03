@@ -5,3 +5,5 @@ openai-whisper
 python-dotenv
 torch
 python-multipart
+yt-dlp
+httpx
