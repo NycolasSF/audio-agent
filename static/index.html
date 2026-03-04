@@ -1140,6 +1140,161 @@
           display: none;
         }
       }
+
+      /* AUTH OVERLAY */
+      .auth-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(6, 6, 16, 0.92);
+        backdrop-filter: blur(10px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+      }
+      .auth-card {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        padding: 36px 32px;
+        width: 100%;
+        max-width: 380px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+      }
+      .auth-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        text-align: center;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        margin-bottom: 4px;
+      }
+      .auth-field {
+        width: 100%;
+        background: var(--glass);
+        border: 1px solid var(--border2);
+        border-radius: 10px;
+        color: var(--text);
+        font-size: 0.9rem;
+        font-family: inherit;
+        padding: 11px 14px;
+        outline: none;
+        transition: border-color 0.2s;
+      }
+      .auth-field:focus { border-color: var(--accent); }
+      .auth-btn {
+        width: 100%;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        border: none;
+        border-radius: 10px;
+        color: #fff;
+        font-size: 0.9rem;
+        font-weight: 600;
+        font-family: inherit;
+        padding: 12px;
+        cursor: pointer;
+        transition: opacity 0.2s;
+        margin-top: 4px;
+      }
+      .auth-btn:hover { opacity: 0.85; }
+      .auth-link {
+        text-align: center;
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        cursor: pointer;
+      }
+      .auth-link b { color: var(--accent); }
+      /* QUOTA BAR */
+      .quota-bar-wrap {
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        font-size: 0.72rem;
+        color: var(--text-dim);
+        white-space: nowrap;
+      }
+      .quota-bar {
+        width: 70px;
+        height: 5px;
+        background: var(--glass2);
+        border-radius: 4px;
+        overflow: hidden;
+      }
+      .quota-bar-fill {
+        height: 100%;
+        border-radius: 4px;
+        background: var(--accent);
+        transition: width 0.4s, background 0.4s;
+      }
+      /* SPEAKER BADGE */
+      .speaker-badge {
+        display: inline-block;
+        font-size: 0.68rem;
+        font-weight: 700;
+        padding: 2px 7px;
+        border-radius: 20px;
+        background: var(--accent-dim);
+        color: var(--accent);
+        margin-right: 6px;
+        cursor: pointer;
+        user-select: none;
+        flex-shrink: 0;
+      }
+      .speaker-badge:hover { background: var(--glow); }
+      .diarize-toggle {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        font-size: 0.82rem;
+        color: var(--text-dim);
+        cursor: pointer;
+        margin-top: 12px;
+      }
+      .diarize-toggle input[type="checkbox"] {
+        appearance: none;
+        -webkit-appearance: none;
+        width: 15px; height: 15px;
+        border: 1.5px solid var(--border2);
+        border-radius: 4px;
+        background: var(--glass);
+        cursor: pointer;
+        display: grid;
+        place-content: center;
+        transition: all .2s;
+        flex-shrink: 0;
+      }
+      .diarize-toggle input[type="checkbox"]::before {
+        content: '';
+        width: 8px; height: 8px;
+        border-radius: 2px;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        transform: scale(0);
+        transition: transform .15s ease;
+      }
+      .diarize-toggle input[type="checkbox"]:checked { border-color: var(--accent); }
+      .diarize-toggle input[type="checkbox"]:checked::before { transform: scale(1); }
+
+      /* USER CHIP */
+      .user-chip {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-dim);
+        background: var(--glass);
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        padding: 4px 12px;
+        cursor: pointer;
+        transition: border-color 0.2s, color 0.2s;
+        white-space: nowrap;
+        max-width: 160px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+      }
+      .user-chip:hover { border-color: var(--accent); color: var(--accent); }
     </style>
   </head>
   <body>
@@ -1155,6 +1310,11 @@
         <option value="medium">Whisper medium</option>
         <option value="large">Whisper large</option>
       </select>
+      <div class="quota-bar-wrap" id="quota-wrap" style="display:none">
+        <div class="quota-bar"><div class="quota-bar-fill" id="quota-fill"></div></div>
+        <span id="quota-label"></span>
+      </div>
+      <span class="user-chip" id="user-chip" style="display:none" onclick="authLogout()"></span>
       <div class="conn-dot" id="conn-dot"></div>
     </header>
 
@@ -1233,6 +1393,11 @@
             Link
           </button>
         </div>
+
+        <label class="diarize-toggle" id="diarize-rec-wrap">
+          <input type="checkbox" id="diarize-rec" />
+          <span>Identificar falantes</span>
+        </label>
 
         <!-- Multi-tab mode picker -->
         <div class="mode-picker" id="mode-picker">
@@ -1351,6 +1516,10 @@
             <div class="fp-size" id="fp-size"></div>
           </div>
         </div>
+        <label class="diarize-toggle">
+          <input type="checkbox" id="diarize-upload" />
+          <span>Identificar falantes</span>
+        </label>
         <div class="sheet-actions">
           <button class="btn-outline" onclick="closeUploadModal()">
             Cancelar
@@ -1376,6 +1545,10 @@
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Adicionar outro link
         </button>
+        <label class="diarize-toggle">
+          <input type="checkbox" id="diarize-link" />
+          <span>Identificar falantes</span>
+        </label>
         <div class="sheet-actions" style="margin-top:16px">
           <button class="btn-outline" onclick="closeLinkModal()">Cancelar</button>
           <button class="btn-primary" id="btn-import-links" onclick="submitLinks()">Importar</button>
@@ -1537,16 +1710,163 @@
         setTimeout(() => n.close(), 6000);
       }
 
+      // === AUTH ===
+      let _authMode = "login";
+
+      function getToken() { return localStorage.getItem("token"); }
+      function setToken(t) { localStorage.setItem("token", t); }
+      function clearToken() { localStorage.removeItem("token"); }
+
+      function authHeaders() {
+        const t = getToken();
+        return t ? { Authorization: `Bearer ${t}` } : {};
+      }
+
+      async function apiFetch(url, opts = {}) {
+        opts.headers = { ...(opts.headers || {}), ...authHeaders() };
+        const r = await fetch(url, opts);
+        if (r.status === 401) {
+          clearToken();
+          showAuthOverlay();
+          throw new Error("Unauthorized");
+        }
+        return r;
+      }
+
+      function showAuthOverlay() {
+        document.getElementById("auth-overlay").style.display = "flex";
+        document.getElementById("user-chip").style.display = "none";
+        document.getElementById("quota-wrap").style.display = "none";
+      }
+
+      function authToggleMode() {
+        _authMode = _authMode === "login" ? "register" : "login";
+        const isLogin = _authMode === "login";
+        document.getElementById("auth-title").textContent = isLogin ? "Entrar" : "Criar conta";
+        document.getElementById("auth-submit").textContent = isLogin ? "Entrar" : "Registrar";
+        document.getElementById("auth-toggle-text").innerHTML = isLogin
+          ? 'Não tem conta? <b>Registrar</b>'
+          : 'Já tem conta? <b>Entrar</b>';
+        document.getElementById("auth-name-wrap").style.display = isLogin ? "none" : "block";
+        document.getElementById("auth-error").textContent = "";
+        document.getElementById("auth-pw-hint").style.display = "none";
+        document.getElementById("auth-password").value = "";
+      }
+
+      function onPasswordInput(val) {
+        const hint = document.getElementById("auth-pw-hint");
+        if (!hint) return;
+        const isRegister = _authMode === "register";
+        if (isRegister && val.length > 0 && val.length < 8) {
+          hint.style.display = "block";
+          hint.style.color = "var(--record)";
+        } else if (isRegister && val.length >= 8) {
+          hint.style.display = "block";
+          hint.style.color = "var(--green)";
+          hint.textContent = "✓ Senha válida";
+        } else {
+          hint.style.display = "none";
+        }
+        hint.textContent = isRegister && val.length > 0 && val.length < 8
+          ? `Mínimo 8 caracteres (${val.length}/8)`
+          : val.length >= 8 ? "✓ Senha válida" : "Mínimo 8 caracteres";
+      }
+
+      async function authSubmit() {
+        const email = document.getElementById("auth-email").value.trim();
+        const password = document.getElementById("auth-password").value;
+        const name = document.getElementById("auth-name").value.trim();
+        const errEl = document.getElementById("auth-error");
+        errEl.textContent = "";
+        if (!email || !password) { errEl.textContent = "Preencha e-mail e senha."; return; }
+
+        try {
+          if (_authMode === "register") {
+            const r = await fetch("/auth/register", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password, name }),
+            });
+            const d = await r.json();
+            if (!r.ok) { errEl.textContent = d.detail || "Erro ao registrar."; return; }
+          }
+          // Login (also runs after register to get token)
+          const r2 = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ email, password }),
+          });
+          const d2 = await r2.json();
+          if (!r2.ok) { errEl.textContent = d2.detail || "Credenciais inválidas."; return; }
+          setToken(d2.access_token);
+          document.getElementById("auth-overlay").style.display = "none";
+          await authFetchMe();
+          connect();
+        } catch (e) {
+          errEl.textContent = "Erro de rede.";
+        }
+      }
+
+      async function authFetchMe() {
+        try {
+          const r = await apiFetch("/me");
+          if (!r.ok) return;
+          const u = await r.json();
+          const chip = document.getElementById("user-chip");
+          chip.textContent = u.email;
+          chip.style.display = "inline-flex";
+          updateQuotaBar(u.usage_minutes, u.quota_minutes);
+        } catch (e) {}
+      }
+
+      function updateQuotaBar(used, quota) {
+        const wrap = document.getElementById("quota-wrap");
+        const fill = document.getElementById("quota-fill");
+        const label = document.getElementById("quota-label");
+        if (!quota) { wrap.style.display = "none"; return; }
+        const pct = Math.min(100, (used / quota) * 100);
+        fill.style.width = `${pct}%`;
+        fill.style.background = pct > 90 ? "var(--record)" : pct > 70 ? "var(--yellow)" : "var(--accent)";
+        label.textContent = `${used.toFixed(1)}/${quota.toFixed(0)} min`;
+        wrap.style.display = "flex";
+      }
+
+      function authLogout() {
+        clearToken();
+        if (ws) { try { ws.close(); } catch (e) {} ws = null; }
+        tbody.innerHTML = "";
+        emptyState.style.display = "";
+        tableWrap.style.display = "none";
+        showAuthOverlay();
+      }
+
+      async function checkAuthOnStart() {
+        if (!getToken()) { showAuthOverlay(); return; }
+        try {
+          const r = await fetch("/me", { headers: authHeaders() });
+          if (!r.ok) { clearToken(); showAuthOverlay(); return; }
+          const u = await r.json();
+          const chip = document.getElementById("user-chip");
+          chip.textContent = u.email;
+          chip.style.display = "inline-flex";
+          updateQuotaBar(u.usage_minutes, u.quota_minutes);
+          connect();
+        } catch (e) {
+          showAuthOverlay();
+        }
+      }
+
       // === WEBSOCKET ===
       function connect() {
-        ws = new WebSocket(`ws://${location.host}/ws`);
+        ws = new WebSocket(`ws://${location.host}/ws?token=${encodeURIComponent(getToken())}`);
         ws.onopen = () => {
           connDot.classList.add("online");
           loadHistory();
         };
-        ws.onclose = () => {
+        ws.onclose = (e) => {
           connDot.classList.remove("online");
           setRec(false);
+          if (e.code === 4001) { clearToken(); showAuthOverlay(); return; }
           setTimeout(connect, 3000);
         };
         ws.onerror = () => toast("Erro na conexão", true);
@@ -1638,7 +1958,15 @@
         if (currentMode !== "sistema") return; // disabled in abas mode
         if ("Notification" in window && Notification.permission === "default")
           Notification.requestPermission();
-        send({ type: "action", action: isRecording ? "stop" : "start" });
+        if (isRecording) {
+          send({
+            type: "action",
+            action: "stop",
+            diarize: document.getElementById("diarize-rec")?.checked ?? false,
+          });
+        } else {
+          send({ type: "action", action: "start" });
+        }
       };
       modelSel.onchange = () =>
         send({ type: "action", action: "change_model", model: modelSel.value });
@@ -1687,7 +2015,17 @@
             return;
           }
           const rawLabel = track.label || '';
-          const pageTitle = extractTabTitle(rawLabel) || ('Fonte ' + (tabSources.length + 1));
+          const extracted = extractTabTitle(rawLabel);
+          const isGeneric = /^(tab(\s+audio)?|default|audio)$/i.test(extracted.trim());
+          let pageTitle = extracted && !isGeneric ? extracted : null;
+          if (!pageTitle) {
+            const entered = await askTabName('Fonte ' + (tabSources.length + 1));
+            if (entered === null) {
+              stream.getTracks().forEach((t) => t.stop());
+              return;
+            }
+            pageTitle = entered || ('Fonte ' + (tabSources.length + 1));
+          }
           const isCross =
             rawLabel.toLowerCase().includes("window") ||
             rawLabel.toLowerCase().includes("entire screen") ||
@@ -1809,7 +2147,7 @@
         fd.append("file", blob, originalName);
         fd.append("model", modelSel.value);
         try {
-          const r = await fetch("/upload", { method: "POST", body: fd });
+          const r = await apiFetch("/upload", { method: "POST", body: fd });
           const j = await r.json();
           if (j.error) {
             toast(j.error, true);
@@ -1893,12 +2231,14 @@
         btn.textContent = "Importar";
         btn.disabled = false;
 
+        const diarizeLinks = document.getElementById("diarize-link")?.checked ? "true" : "false";
         for (const url of urls) {
           const fd = new FormData();
           fd.append("url", url);
           fd.append("model", modelSel.value);
+          fd.append("diarize", diarizeLinks);
           try {
-            const r = await fetch("/import-url", { method: "POST", body: fd });
+            const r = await apiFetch("/import-url", { method: "POST", body: fd });
             const j = await r.json();
             if (j.error) { toast(url.slice(0, 40) + ": " + j.error, true); continue; }
             createRow({ ...j, source: j.display_name || url, fromUpload: true });
@@ -1919,6 +2259,8 @@
         document.getElementById("file-preview").classList.remove("show");
         document.getElementById("btn-transcribe").disabled = true;
         document.getElementById("file-input").value = "";
+        const dc = document.getElementById("diarize-upload");
+        if (dc) dc.checked = false;
       }
       function onFileSelected(f) {
         if (!f) return;
@@ -1947,11 +2289,12 @@
         const fd = new FormData();
         fd.append("file", selectedFile);
         fd.append("model", modelSel.value);
+        fd.append("diarize", document.getElementById("diarize-upload")?.checked ? "true" : "false");
         const btn = document.getElementById("btn-transcribe");
         btn.disabled = true;
         btn.textContent = "Enviando…";
         try {
-          const r = await fetch("/upload", { method: "POST", body: fd });
+          const r = await apiFetch("/upload", { method: "POST", body: fd });
           const j = await r.json();
           closeUploadModal();
           btn.textContent = "Transcrever";
@@ -1975,7 +2318,7 @@
         if (prev) clearInterval(prev);
         const iv = setInterval(async () => {
           try {
-            const r = await fetch(`/transcriptions/${id}/status`);
+            const r = await apiFetch(`/transcriptions/${id}/status`);
             const j = await r.json();
             // Show live progress while processing
             if (typeof j.percent === "number") updateProg(id, j.percent);
@@ -2081,6 +2424,10 @@
       function completeRow(msg, titleOverride) {
         const existing = store.get(msg.id) || {};
         const merged = { ...existing, ...msg };
+        // Preserve speaker_names: merge existing into incoming (REST history already has it)
+        if (existing.speaker_names && !merged.speaker_names) {
+          merged.speaker_names = existing.speaker_names;
+        }
         store.set(msg.id, merged);
         const row = document.getElementById("row-" + msg.id);
         if (!row) return;
@@ -2131,7 +2478,7 @@
       // === HISTORY ===
       async function loadHistory() {
         try {
-          const r = await fetch("/transcriptions");
+          const r = await apiFetch("/transcriptions");
           if (!r.ok) return;
           const items = await r.json();
           items.forEach((item) => {
@@ -2150,6 +2497,30 @@
         }
       }
 
+      // === SPEAKER DIARIZATION ===
+      function resolveSpeaker(jobId, label) {
+        const d = store.get(jobId);
+        return (d?.speaker_names || {})[label] || label;
+      }
+
+      async function renameSpeaker(jobId, label, el) {
+        const current = el.textContent;
+        const name = prompt(`Renomear "${current}" para:`, current);
+        if (!name || name.trim() === current) return;
+        const trimmed = name.trim();
+        await apiFetch(`/transcriptions/${jobId}/speakers`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ names: { [label]: trimmed } }),
+        }).catch(() => {});
+        // Update all badges for this speaker in the current view
+        document.querySelectorAll(`.speaker-badge[data-job="${jobId}"][data-spk="${label}"]`)
+          .forEach(b => { b.textContent = trimmed; });
+        // Update local store
+        const d = store.get(jobId);
+        if (d) d.speaker_names = { ...(d.speaker_names || {}), [label]: trimmed };
+      }
+
       // === DETAIL PANEL ===
       let currentDetailId = null;
       function openDetail(id) {
@@ -2165,12 +2536,18 @@
         document.getElementById('detail-meta').textContent =
           [d.timestamp, d.duration ? fmtDur(d.duration) : null, d.language ? d.language.toUpperCase() : null, d.model]
             .filter(Boolean).join(' · ');
-        // Render text with timestamps
+        // Render text with timestamps (and optional speaker badges)
         const area = document.getElementById('detail-text');
         if (d.segments && d.segments.length) {
-          area.innerHTML = d.segments.map(s =>
-            `<span class="ts-mark" title="${toVtt(s.start)}">(${toShortTime(s.start)})</span>${escHtml(s.text.trim())} `
-          ).join('');
+          area.innerHTML = d.segments.map(s => {
+            const spkHtml = s.speaker
+              ? `<span class="speaker-badge" data-job="${id}" data-spk="${escHtml(s.speaker)}"
+                   title="Duplo-clique para renomear"
+                   ondblclick="renameSpeaker('${id}','${escHtml(s.speaker)}',this)"
+                 >${escHtml(resolveSpeaker(id, s.speaker))}</span>`
+              : '';
+            return `<span class="ts-mark" title="${toVtt(s.start)}">(${toShortTime(s.start)})</span>${spkHtml}${escHtml(s.text.trim())} `;
+          }).join('');
         } else {
           area.textContent = d.text || '';
         }
@@ -2193,7 +2570,7 @@
         // Sync to table row
         const titleEl = document.getElementById('title-' + currentDetailId);
         if (titleEl && title) titleEl.textContent = title;
-        await fetch(`/transcriptions/${currentDetailId}/title`, {
+        await apiFetch(`/transcriptions/${currentDetailId}/title`, {
           method: 'PATCH', headers: {'Content-Type':'application/json'},
           body: JSON.stringify({title})
         }).catch(()=>{});
@@ -2206,7 +2583,7 @@
         btn.disabled = true; btn.textContent = 'Iniciando…';
         try {
           const fd = new FormData(); fd.append('model', model);
-          const r = await fetch(`/transcriptions/${tid}/retranscribe`, {method:'POST', body:fd});
+          const r = await apiFetch(`/transcriptions/${tid}/retranscribe`, {method:'POST', body:fd});
           const j = await r.json();
           if (j.error) { toast(j.error, true); btn.disabled=false; btn.textContent='↻ Re-transcrever'; return; }
           toast('Re-transcrição iniciada com ' + model);
@@ -2245,6 +2622,32 @@
         return label.replace(/\s*[-–]\s*(?:Google Chrome|Chromium|Microsoft Edge|Firefox|Safari)$/i,'').trim() || label;
       }
 
+      // === TAB NAME MODAL ===
+      let _tabNameResolve = null;
+
+      function askTabName(defaultVal) {
+        return new Promise((resolve) => {
+          _tabNameResolve = resolve;
+          const modal = document.getElementById("tab-name-modal");
+          const input = document.getElementById("tab-name-input");
+          input.value = defaultVal;
+          modal.classList.add("open");
+          setTimeout(() => { input.focus(); input.select(); }, 50);
+        });
+      }
+
+      function confirmTabName() {
+        const input = document.getElementById("tab-name-input");
+        const val = input.value.trim();
+        document.getElementById("tab-name-modal").classList.remove("open");
+        if (_tabNameResolve) { _tabNameResolve(val || input.value); _tabNameResolve = null; }
+      }
+
+      function cancelTabName() {
+        document.getElementById("tab-name-modal").classList.remove("open");
+        if (_tabNameResolve) { _tabNameResolve(null); _tabNameResolve = null; }
+      }
+
       // === TITLE / DELETE ===
 
       function autoTitle(text, ts) {
@@ -2256,7 +2659,7 @@
         const title = el.textContent.trim();
         const d = store.get(id);
         if (d) d.title = title;
-        await fetch(`/transcriptions/${id}/title`, {
+        await apiFetch(`/transcriptions/${id}/title`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title }),
@@ -2264,7 +2667,7 @@
       }
       async function deleteRow(id) {
         if (!confirm("Excluir esta transcrição?")) return;
-        await fetch(`/transcriptions/${id}`, { method: "DELETE" }).catch(
+        await apiFetch(`/transcriptions/${id}`, { method: "DELETE" }).catch(
           () => {},
         );
         document.getElementById("row-" + id)?.remove();
@@ -2437,11 +2840,55 @@
           !e.target.closest(".upload-sheet") &&
           !e.target.closest(".pill") &&
           e.target.closest(".modal-overlay")
-        )
-          closeUploadModal();
+        ) {
+          if (e.target.closest("#tab-name-modal")) cancelTabName();
+          else closeUploadModal();
+        }
       });
 
-      connect();
+      document.addEventListener("DOMContentLoaded", checkAuthOnStart);
     </script>
+
+    <!-- Tab Name Modal -->
+    <div class="modal-overlay" id="tab-name-modal">
+      <div class="upload-sheet" style="max-width:380px">
+        <div class="sheet-title">Nome da fonte</div>
+        <p style="font-size:0.82rem;color:var(--text-dim);margin-bottom:14px">Como você quer chamar esta aba/janela?</p>
+        <input
+          class="auth-field"
+          id="tab-name-input"
+          type="text"
+          placeholder="Ex.: YouTube – música"
+          style="width:100%;margin-bottom:20px"
+          onkeydown="if(event.key==='Enter')confirmTabName();else if(event.key==='Escape')cancelTabName()"
+        />
+        <div class="sheet-actions">
+          <button class="btn-outline" onclick="cancelTabName()">Cancelar</button>
+          <button class="btn-primary" onclick="confirmTabName()">Confirmar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUTH OVERLAY -->
+    <div class="auth-overlay" id="auth-overlay" style="display:none">
+      <div class="auth-card">
+        <div class="auth-title" id="auth-title">Entrar</div>
+        <div id="auth-name-wrap" style="display:none">
+          <input class="auth-field" id="auth-name" type="text" placeholder="Nome (opcional)" autocomplete="name" />
+        </div>
+        <input class="auth-field" id="auth-email" type="email" placeholder="E-mail" autocomplete="email" />
+        <input class="auth-field" id="auth-password" type="password" placeholder="Senha" autocomplete="current-password"
+          onkeydown="if(event.key==='Enter') authSubmit()"
+          oninput="onPasswordInput(this.value)" />
+        <div id="auth-pw-hint" style="font-size:0.75rem;color:var(--text-dim);min-height:1rem;padding:0 2px;display:none">
+          Mínimo 8 caracteres
+        </div>
+        <button class="auth-btn" id="auth-submit" onclick="authSubmit()">Entrar</button>
+        <div class="auth-link" onclick="authToggleMode()">
+          <span id="auth-toggle-text">Não tem conta? <b>Registrar</b></span>
+        </div>
+        <div id="auth-error" style="color:var(--record);font-size:0.8rem;min-height:1.1rem;text-align:center"></div>
+      </div>
+    </div>
   </body>
 </html>

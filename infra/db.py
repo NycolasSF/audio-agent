@@ -1,5 +1,4 @@
 import sqlite3
-from contextlib import contextmanager
 from pathlib import Path
 
 from core import settings
@@ -16,7 +15,7 @@ def get_connection() -> sqlite3.Connection:
 
 
 def init_db() -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist and run idempotent migrations."""
     conn = get_connection()
     try:
         conn.executescript("""
@@ -69,7 +68,40 @@ def init_db() -> None:
                 model      TEXT,
                 created_at TEXT
             );
+
+            CREATE TABLE IF NOT EXISTS users (
+                id            TEXT PRIMARY KEY,
+                email         TEXT UNIQUE NOT NULL,
+                password_hash TEXT NOT NULL,
+                name          TEXT DEFAULT '',
+                is_active     INTEGER DEFAULT 1,
+                quota_minutes REAL DEFAULT 60.0,
+                created_at    TEXT,
+                updated_at    TEXT
+            );
+
+            CREATE TABLE IF NOT EXISTS usage_minutes (
+                id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id    TEXT NOT NULL REFERENCES users(id),
+                job_id     TEXT REFERENCES jobs(id),
+                minutes    REAL NOT NULL,
+                model      TEXT,
+                created_at TEXT
+            );
         """)
         conn.commit()
+
+        # Idempotent migrations: add columns that may be missing on older DBs
+        existing_cols = [r[1] for r in conn.execute("PRAGMA table_info(jobs)").fetchall()]
+        if "user_id" not in existing_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN user_id TEXT REFERENCES users(id)")
+            conn.commit()
+        if "diarize" not in existing_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN diarize INTEGER DEFAULT 0")
+            conn.commit()
+        if "speaker_names" not in existing_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN speaker_names TEXT")
+            conn.commit()
+
     finally:
         conn.close()

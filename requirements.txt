@@ -7,3 +7,8 @@ torch
 python-multipart
 yt-dlp
 httpx
+python-jose[cryptography]
+passlib[bcrypt]
+bcrypt<5.0
+email-validator
+pyannote.audio

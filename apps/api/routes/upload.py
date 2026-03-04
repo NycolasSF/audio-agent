@@ -4,10 +4,11 @@ from datetime import datetime
 from pathlib import Path
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, File, Form, UploadFile
+from fastapi import APIRouter, Depends, File, Form, UploadFile
 from fastapi.responses import JSONResponse
 
 from apps.api import state
+from apps.api.deps import get_current_user
 from core import settings
 from core.services.audio_utils import get_audio_duration
 from core.services.downloader import download_direct, download_with_ytdlp, is_ytdlp_source
@@ -16,8 +17,24 @@ from infra.storage_local import ensure_recordings_dir, get_import_path, get_uplo
 router = APIRouter()
 
 
+def _quota_check(current_user: dict):
+    used = state.user_repo.get_usage_total(current_user["id"])
+    if used >= current_user["quota_minutes"]:
+        return JSONResponse({"error": "Cota de minutos esgotada"}, status_code=429)
+    return None
+
+
 @router.post("/upload")
-async def upload_file(file: UploadFile = File(...), model: str = Form("base")):
+async def upload_file(
+    file: UploadFile = File(...),
+    model: str = Form("base"),
+    diarize: bool = Form(False),
+    current_user: dict = Depends(get_current_user),
+):
+    err = _quota_check(current_user)
+    if err:
+        return err
+
     ext = Path(file.filename).suffix.lower()
     if ext not in settings.ALLOWED_EXTENSIONS:
         return JSONResponse(
@@ -46,6 +63,8 @@ async def upload_file(file: UploadFile = File(...), model: str = Form("base")):
         "file_path": dest_path,
         "title": "",
         "source": file.filename,
+        "user_id": current_user["id"],
+        "diarize": int(diarize),
         "created_at": datetime.now().isoformat(),
     })
     state.queue.enqueue(card_id)
@@ -62,8 +81,17 @@ async def upload_file(file: UploadFile = File(...), model: str = Form("base")):
 
 
 @router.post("/import-url")
-async def import_url_endpoint(url: str = Form(...), model: str = Form("base")):
+async def import_url_endpoint(
+    url: str = Form(...),
+    model: str = Form("base"),
+    diarize: bool = Form(False),
+    current_user: dict = Depends(get_current_user),
+):
     """Import audio from a YouTube, Google Drive, or direct audio/video URL."""
+    err = _quota_check(current_user)
+    if err:
+        return err
+
     url = url.strip()
     if not url:
         return JSONResponse({"error": "URL não pode ser vazia"}, status_code=400)
@@ -89,6 +117,7 @@ async def import_url_endpoint(url: str = Form(...), model: str = Form("base")):
 
     card_id = uuid.uuid4().hex[:8]
     timestamp = datetime.now().strftime("%H:%M:%S")
+    user_id = current_user["id"]
 
     # Derive display name from URL
     parsed = urlparse(url)
@@ -96,7 +125,7 @@ async def import_url_endpoint(url: str = Form(...), model: str = Form("base")):
     if len(display_name) > 60:
         display_name = display_name[:57] + "..."
 
-    # Create job placeholder immediately (file_path filled after download)
+    # Create placeholder job immediately so the client can show a card
     state.repo.create_job({
         "id": card_id,
         "status": "pending",
@@ -107,13 +136,15 @@ async def import_url_endpoint(url: str = Form(...), model: str = Form("base")):
         "file_path": None,
         "title": "",
         "source": url,
+        "user_id": user_id,
+        "diarize": int(diarize),
         "created_at": datetime.now().isoformat(),
     })
 
-    # Download runs in a background thread via the executor, then enqueues the job
+    # Download in background thread, then enqueue for transcription
     import asyncio
     loop = asyncio.get_event_loop()
-    loop.run_in_executor(None, _download_and_enqueue, card_id, url, timestamp)
+    loop.run_in_executor(None, _download_and_enqueue, card_id, url, user_id)
 
     return {
         "id": card_id,
@@ -126,7 +157,7 @@ async def import_url_endpoint(url: str = Form(...), model: str = Form("base")):
     }
 
 
-def _download_and_enqueue(card_id: str, url: str, timestamp: str) -> None:
+def _download_and_enqueue(card_id: str, url: str, user_id: str) -> None:
     """Download the URL and enqueue for transcription. Runs in a thread."""
     from infra.db import get_connection
     from datetime import datetime as _dt
@@ -146,7 +177,6 @@ def _download_and_enqueue(card_id: str, url: str, timestamp: str) -> None:
 
         duration = get_audio_duration(file_path)
 
-        # Update job with actual file_path and duration
         conn = get_connection()
         try:
             conn.execute(

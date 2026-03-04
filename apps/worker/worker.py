@@ -16,11 +16,13 @@ class Worker(threading.Thread):
         queue: JobQueue,
         repo: TranscriptionRepo,
         progress_callbacks: Dict[str, Callable],
+        user_repo=None,
     ):
         super().__init__(daemon=True, name="TranscriptionWorker")
         self.queue = queue
         self.repo = repo
         self.progress_callbacks = progress_callbacks
+        self.user_repo = user_repo
         # Exposed for stuck-detection in the status endpoint
         self.current_job_id: Optional[str] = None
 
@@ -44,6 +46,11 @@ class Worker(threading.Thread):
                 print(f"[Worker] Job {job_id} não encontrado, descartando.")
                 return
 
+            # Capture before any DB mutation so we don't need a second get_job later
+            user_id = job.get("user_id")
+            duration = job.get("duration") or 0.0
+            model = job.get("model")
+
             self.repo.mark_processing(job_id)
 
             def progress_cb(pct: int) -> None:
@@ -57,19 +64,33 @@ class Worker(threading.Thread):
 
             with BenchmarkContext(
                 job_id=job_id,
-                model=job["model"],
-                device=job["device"] or "cpu",
-                audio_duration=job["duration"] or 0.0,
+                model=model,
+                device=job.get("device") or "cpu",
+                audio_duration=duration,
             ):
                 result = transcribe_with_progress(
                     file_path=job["file_path"],
-                    model_name=job["model"],
-                    device=job["device"] or "cpu",
+                    model_name=model,
+                    device=job.get("device") or "cpu",
                     progress_cb=progress_cb,
                 )
 
+            if result["success"] and job.get("diarize"):
+                try:
+                    from core.services.diarizer import diarize, merge_speaker_labels
+                    print(f"[Worker] Diarizando {job_id}…")
+                    d_segs = diarize(job["file_path"])
+                    result["segments"] = merge_speaker_labels(result["segments"], d_segs)
+                except Exception as e:
+                    print(f"[Worker] Diarização falhou (continuando sem): {e}")
+
             if result["success"]:
                 self.repo.mark_done(job_id, result)
+                if self.user_repo and user_id and duration:
+                    try:
+                        self.user_repo.record_usage(user_id, job_id, duration / 60, model)
+                    except Exception as e:
+                        print(f"[Worker] Erro ao registrar uso para {job_id}: {e}")
             else:
                 self.repo.mark_error(job_id, result.get("error", "Erro desconhecido"))
 

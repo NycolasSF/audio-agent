@@ -21,6 +21,7 @@ class Job:
     language: Optional[str] = None
     segments: Optional[List[dict]] = None
     error: Optional[str] = None
+    user_id: Optional[str] = None
     created_at: str = ""
     updated_at: str = ""
 

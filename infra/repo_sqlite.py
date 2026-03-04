@@ -17,6 +17,11 @@ def _row_to_dict(row) -> dict:
             d["segments"] = json.loads(d["segments"])
         except Exception:
             d["segments"] = []
+    if isinstance(d.get("speaker_names"), str):
+        try:
+            d["speaker_names"] = json.loads(d["speaker_names"])
+        except Exception:
+            d["speaker_names"] = {}
     return d
 
 
@@ -31,11 +36,11 @@ class SQLiteRepo(TranscriptionRepo):
                 INSERT INTO jobs
                   (id, status, title, source, file_path, model, device,
                    timestamp, duration, percent, text, language, segments,
-                   error, created_at, updated_at)
+                   error, user_id, diarize, speaker_names, created_at, updated_at)
                 VALUES
                   (:id, :status, :title, :source, :file_path, :model, :device,
                    :timestamp, :duration, :percent, :text, :language, :segments,
-                   :error, :created_at, :updated_at)
+                   :error, :user_id, :diarize, :speaker_names, :created_at, :updated_at)
                 """,
                 {
                     "id": data["id"],
@@ -52,6 +57,9 @@ class SQLiteRepo(TranscriptionRepo):
                     "language": data.get("language"),
                     "segments": json.dumps(data["segments"]) if data.get("segments") is not None else None,
                     "error": data.get("error"),
+                    "user_id": data.get("user_id"),
+                    "diarize": int(data.get("diarize", 0)),
+                    "speaker_names": None,
                     "created_at": data.get("created_at", now),
                     "updated_at": now,
                 },
@@ -126,12 +134,29 @@ class SQLiteRepo(TranscriptionRepo):
         finally:
             conn.close()
 
-    def list_jobs(self, limit: int = 200) -> List[dict]:
+    def get_job_owned_by(self, job_id: str, user_id: str) -> Optional[dict]:
+        """Return job only if it belongs to user_id."""
         conn = get_connection()
         try:
-            rows = conn.execute(
-                "SELECT * FROM jobs ORDER BY created_at ASC LIMIT ?", (limit,)
-            ).fetchall()
+            row = conn.execute(
+                "SELECT * FROM jobs WHERE id=? AND user_id=?", (job_id, user_id)
+            ).fetchone()
+            return _row_to_dict(row) if row else None
+        finally:
+            conn.close()
+
+    def list_jobs(self, limit: int = 200, user_id: Optional[str] = None) -> List[dict]:
+        conn = get_connection()
+        try:
+            if user_id:
+                rows = conn.execute(
+                    "SELECT * FROM jobs WHERE user_id=? ORDER BY created_at ASC LIMIT ?",
+                    (user_id, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM jobs ORDER BY created_at ASC LIMIT ?", (limit,)
+                ).fetchall()
             return [_row_to_dict(r) for r in rows]
         finally:
             conn.close()
@@ -142,6 +167,30 @@ class SQLiteRepo(TranscriptionRepo):
             conn.execute(
                 "UPDATE jobs SET title=?, updated_at=? WHERE id=?",
                 (title, _now(), job_id),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+    def update_speaker_names(self, job_id: str, names: dict) -> None:
+        """Merge *names* into the existing speaker_names JSON map for *job_id*."""
+        conn = get_connection()
+        try:
+            row = conn.execute(
+                "SELECT speaker_names FROM jobs WHERE id=?", (job_id,)
+            ).fetchone()
+            if row is None:
+                return
+            existing: dict = {}
+            if row[0]:
+                try:
+                    existing = json.loads(row[0])
+                except Exception:
+                    pass
+            existing.update(names)
+            conn.execute(
+                "UPDATE jobs SET speaker_names=?, updated_at=? WHERE id=?",
+                (json.dumps(existing), _now(), job_id),
             )
             conn.commit()
         finally:

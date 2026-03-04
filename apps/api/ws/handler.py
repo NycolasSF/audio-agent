@@ -1,10 +1,12 @@
 import asyncio
+import os
 import uuid
 from datetime import datetime
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import Query, WebSocket, WebSocketDisconnect
 
 from apps.api import state
+from apps.api.auth.jwt import decode_token
 from core import settings
 
 
@@ -56,8 +58,19 @@ async def _poll_job(ws: WebSocket, card_id: str, loop: asyncio.AbstractEventLoop
         state.progress_callbacks.pop(card_id, None)
 
 
-async def websocket_endpoint(ws: WebSocket) -> None:
+async def websocket_endpoint(ws: WebSocket, token: str = Query(...)) -> None:
     await ws.accept()
+
+    # Authenticate via JWT query param
+    try:
+        payload = decode_token(token)
+        user = state.user_repo.get_by_id(payload["sub"])
+        if not user or not user["is_active"]:
+            raise ValueError("Inactive or unknown user")
+    except Exception:
+        await ws.send_json({"type": "error", "message": "Autenticação inválida"})
+        await ws.close(code=4001)
+        return
 
     current_model: str = settings.WHISPER_MODEL
 
@@ -106,6 +119,7 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 
             elif action == "stop":
                 was_recording = False
+                diarize_flag = bool(data.get("diarize", False))
                 stop_result = await asyncio.get_event_loop().run_in_executor(
                     None, state.recorder.stop
                 )
@@ -117,6 +131,19 @@ async def websocket_endpoint(ws: WebSocket) -> None:
 
                 if not stop_result["success"]:
                     await ws.send_json({"type": "error", "message": stop_result["message"]})
+                    continue
+
+                # Quota check before enqueuing
+                used = state.user_repo.get_usage_total(user["id"])
+                if used >= user["quota_minutes"]:
+                    await ws.send_json({
+                        "type": "error",
+                        "message": "Cota de minutos esgotada. Gravação descartada.",
+                    })
+                    try:
+                        os.remove(stop_result["file_path"])
+                    except Exception:
+                        pass
                     continue
 
                 card_id = uuid.uuid4().hex[:8]
@@ -135,6 +162,8 @@ async def websocket_endpoint(ws: WebSocket) -> None:
                     "file_path": file_path,
                     "title": "",
                     "source": "",
+                    "user_id": user["id"],
+                    "diarize": int(diarize_flag),
                     "created_at": datetime.now().isoformat(),
                 })
                 state.queue.enqueue(card_id)

@@ -1,4 +1,5 @@
 import os
+import secrets
 
 from dotenv import load_dotenv
 
@@ -15,3 +16,20 @@ RECORDINGS_DIR: str = "recordings"
 TRANSCRIPTIONS_DIR: str = "transcriptions"
 
 ALLOWED_EXTENSIONS: set = {".mp3", ".mp4", ".wav", ".m4a", ".ogg", ".webm", ".flac"}
+
+# ── Auth ───────────────────────────────────────────────────────────────────
+_raw_secret = os.getenv("JWT_SECRET_KEY")
+if not _raw_secret:
+    import warnings
+    warnings.warn(
+        "JWT_SECRET_KEY não definida — tokens serão invalidados a cada restart. "
+        "Defina JWT_SECRET_KEY no .env para produção.",
+        stacklevel=1,
+    )
+JWT_SECRET_KEY: str = _raw_secret or secrets.token_hex(32)
+JWT_ALGORITHM: str = "HS256"
+JWT_EXPIRE_DAYS: int = int(os.getenv("JWT_EXPIRE_DAYS", "30"))
+DEFAULT_QUOTA_MINUTES: float = float(os.getenv("DEFAULT_QUOTA_MINUTES", "60.0"))
+
+# ── Diarização ──────────────────────────────────────────────────────────────
+HUGGINGFACE_TOKEN: str = os.getenv("HUGGINGFACE_TOKEN", "")

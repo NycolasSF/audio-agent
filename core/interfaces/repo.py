@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import List, Optional  # noqa: F401
 
 
 class TranscriptionRepo(ABC):
@@ -22,10 +22,13 @@ class TranscriptionRepo(ABC):
     def get_job(self, job_id: str) -> Optional[dict]: ...
 
     @abstractmethod
-    def list_jobs(self, limit: int = 200) -> List[dict]: ...
+    def list_jobs(self, limit: int = 200, user_id: Optional[str] = None) -> List[dict]: ...
 
     @abstractmethod
     def update_title(self, job_id: str, title: str) -> None: ...
+
+    @abstractmethod
+    def update_speaker_names(self, job_id: str, names: dict) -> None: ...
 
     @abstractmethod
     def delete_job(self, job_id: str) -> None: ...
