@@ -17,18 +17,30 @@ class Worker(threading.Thread):
         repo: TranscriptionRepo,
         progress_callbacks: Dict[str, Callable],
         user_repo=None,
+        device: str = "cpu",
+        gpu_limit: int = 70,
+        name: str = "TranscriptionWorker",
+        should_dequeue: Optional[Callable[[], bool]] = None,
     ):
-        super().__init__(daemon=True, name="TranscriptionWorker")
+        super().__init__(daemon=True, name=name)
         self.queue = queue
         self.repo = repo
         self.progress_callbacks = progress_callbacks
         self.user_repo = user_repo
+        self.device = device
+        self.gpu_limit = gpu_limit
+        # Se fornecido, o worker só dequeua quando este callback retornar True.
+        # Usado para workers CPU esperarem a GPU estar ocupada.
+        self._should_dequeue = should_dequeue
         # Exposed for stuck-detection in the status endpoint
         self.current_job_id: Optional[str] = None
 
     def run(self) -> None:
         while True:
             try:
+                if self._should_dequeue and not self._should_dequeue():
+                    time.sleep(0.5)
+                    continue
                 job_id = self.queue.next_job()
                 if job_id is None:
                     time.sleep(0.5)
@@ -62,17 +74,20 @@ class Worker(threading.Thread):
                     except Exception:
                         pass
 
+            input_language = job.get("input_language") or "pt"
             with BenchmarkContext(
                 job_id=job_id,
                 model=model,
-                device=job.get("device") or "cpu",
+                device=self.device,
                 audio_duration=duration,
             ):
                 result = transcribe_with_progress(
                     file_path=job["file_path"],
                     model_name=model,
-                    device=job.get("device") or "cpu",
+                    device=self.device,
                     progress_cb=progress_cb,
+                    language=None if input_language == "auto" else input_language,
+                    gpu_limit=self.gpu_limit,
                 )
 
             if result["success"] and job.get("diarize"):

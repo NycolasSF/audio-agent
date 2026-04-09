@@ -1,12 +1,14 @@
 import torch
-from fastapi import Depends, FastAPI
+from typing import List
+
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
 from apps.api import state
-from apps.api.auth.models import UsageResponse, UserOut
+from apps.api.auth.models import AdminUserItem, QuotaUpdateBody, UsageResponse, UserOut
 from apps.api.auth.routes import router as auth_router
-from apps.api.deps import get_current_user
+from apps.api.deps import get_admin_user, get_current_user
 from apps.api.routes import transcriptions, upload
 from apps.api.ws.handler import websocket_endpoint
 from infra.db import init_db
@@ -25,7 +27,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup() -> None:
     init_db()
-    state.worker.start()
+    state.pool.start()
     device_label = state.DEVICE.upper()
     if state.DEVICE == "cuda":
         try:
@@ -54,12 +56,30 @@ async def usage(current_user: dict = Depends(get_current_user)):
     total = state.user_repo.get_usage_total(current_user["id"])
     quota = current_user["quota_minutes"]
     history = state.user_repo.get_usage_history(current_user["id"])
+    remaining = -1.0 if quota == -1 else max(0.0, quota - total)
     return {
         "total_minutes": total,
         "quota_minutes": quota,
-        "remaining_minutes": max(0.0, quota - total),
+        "remaining_minutes": remaining,
         "history": history,
     }
+
+
+@app.get("/admin/users", response_model=List[AdminUserItem])
+async def admin_list_users(admin: dict = Depends(get_admin_user)):
+    return state.user_repo.get_all_users()
+
+
+@app.patch("/admin/users/{user_id}/quota")
+async def admin_update_quota(
+    user_id: str,
+    body: QuotaUpdateBody,
+    admin: dict = Depends(get_admin_user),
+):
+    ok = state.user_repo.update_quota(user_id, body.quota_minutes)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Usuário não encontrado")
+    return {"ok": True}
 
 
 @app.get("/")

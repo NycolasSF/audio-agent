@@ -1,5 +1,6 @@
 import importlib
 import os
+import time
 
 import tqdm as _tqdm_pkg
 import torch
@@ -23,12 +24,27 @@ def get_model(model_name: str, device: str):
     return _model_cache[key]
 
 
+def _throttle_gpu(limit_pct: int) -> None:
+    """Dorme entre segmentos quando a GPU ultrapassar o limite de utilização."""
+    if not torch.cuda.is_available():
+        return
+    try:
+        util = torch.cuda.utilization()
+        if util > limit_pct:
+            # Proporcional ao overshoot: cada 10% acima do limite = ~50ms de espera
+            sleep_s = (util - limit_pct) / 100 * 0.5
+            time.sleep(sleep_s)
+    except Exception:
+        pass
+
+
 def transcribe_with_progress(
     file_path: str,
     model_name: str = "base",
     device: str = "cpu",
     progress_cb=None,
     language: str | None = None,
+    gpu_limit: int = 70,
 ) -> dict:
     if not os.path.exists(file_path):
         return {"success": False, "text": "", "segments": [], "error": "Arquivo não encontrado"}
@@ -36,10 +52,13 @@ def transcribe_with_progress(
     try:
         model = get_model(model_name, device)
         original_tqdm_module = _wt.tqdm
+        _device = device
 
         class _ProgressTqdm(_tqdm_pkg.tqdm):
             def update(self, n=1):
                 super().update(n)
+                if _device == "cuda":
+                    _throttle_gpu(gpu_limit)
                 if progress_cb and self.total:
                     pct = int(min(self.n / self.total * 100, 99))
                     progress_cb(pct)

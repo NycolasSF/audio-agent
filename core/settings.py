@@ -31,5 +31,16 @@ JWT_ALGORITHM: str = "HS256"
 JWT_EXPIRE_DAYS: int = int(os.getenv("JWT_EXPIRE_DAYS", "30"))
 DEFAULT_QUOTA_MINUTES: float = float(os.getenv("DEFAULT_QUOTA_MINUTES", "60.0"))
 
+# ── Dev ─────────────────────────────────────────────────────────────────────
+DEV_AUTO_LOGIN: bool = os.getenv("DEV_AUTO_LOGIN", "false").lower() == "true"
+
 # ── Diarização ──────────────────────────────────────────────────────────────
 HUGGINGFACE_TOKEN: str = os.getenv("HUGGINGFACE_TOKEN", "")
+
+# ── Worker pool ─────────────────────────────────────────────────────────────
+# Máximo de utilização da GPU (%). Quando ultrapassado, o worker dorme entre
+# segmentos para liberar ciclos para outras aplicações.
+GPU_UTIL_LIMIT: int = int(os.getenv("GPU_UTIL_LIMIT", "70"))
+
+# Workers extras usando apenas CPU. 0 = só GPU (ou CPU se CUDA indisponível).
+CPU_WORKERS: int = int(os.getenv("CPU_WORKERS", "1"))

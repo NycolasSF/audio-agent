@@ -73,7 +73,7 @@ async def get_transcription_status(tid: str, current_user: dict = Depends(get_cu
         return {"status": "done", **job}
 
     # pending or processing
-    if state.worker.current_job_id == tid:
+    if state.pool.is_processing(tid):
         return JSONResponse({"status": "processing", "percent": job["percent"]})
 
     if s == "pending":
@@ -87,6 +87,7 @@ async def get_transcription_status(tid: str, current_user: dict = Depends(get_cu
 async def retranscribe(
     tid: str,
     model: str = Form("base"),
+    language: str = Form("pt"),
     current_user: dict = Depends(get_current_user),
 ):
     job = state.repo.get_job_owned_by(tid, current_user["id"])
@@ -104,9 +105,11 @@ async def retranscribe(
         model = settings.WHISPER_MODEL
 
     # Quota check before re-enqueuing
-    used = state.user_repo.get_usage_total(current_user["id"])
-    if used >= current_user["quota_minutes"]:
-        raise HTTPException(status_code=429, detail="Cota de minutos esgotada")
+    quota = current_user["quota_minutes"]
+    if quota != -1:
+        used = state.user_repo.get_usage_total(current_user["id"])
+        if used >= quota:
+            raise HTTPException(status_code=429, detail="Cota de minutos esgotada")
 
     # Reset job and re-enqueue
     from infra.db import get_connection
@@ -116,14 +119,14 @@ async def retranscribe(
             """
             UPDATE jobs
             SET status='pending', percent=0, text=NULL, language=NULL,
-                segments=NULL, error=NULL, model=?, updated_at=?
+                segments=NULL, error=NULL, model=?, input_language=?, updated_at=?
             WHERE id=?
             """,
-            (model, datetime.now().isoformat(), tid),
+            (model, language, datetime.now().isoformat(), tid),
         )
         conn.commit()
     finally:
         conn.close()
 
     state.queue.enqueue(tid)
-    return {"id": tid, "status": "processing", "model": model}
+    return {"id": tid, "status": "processing", "model": model, "language": language}
