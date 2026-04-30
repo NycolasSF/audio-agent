@@ -102,6 +102,26 @@ def init_db() -> None:
         if "speaker_names" not in existing_cols:
             conn.execute("ALTER TABLE jobs ADD COLUMN speaker_names TEXT")
             conn.commit()
+        if "input_language" not in existing_cols:
+            conn.execute("ALTER TABLE jobs ADD COLUMN input_language TEXT DEFAULT 'pt'")
+            conn.commit()
+
+        # is_admin column for users table
+        user_cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]
+        if "is_admin" not in user_cols:
+            conn.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+            conn.commit()
+            # Auto-promote nycolas@gmail.com to admin
+            conn.execute(
+                "UPDATE users SET is_admin=1 WHERE email=?", ("nycolas@gmail.com",)
+            )
+            conn.commit()
+        else:
+            # Ensure nycolas@gmail.com is always admin (idempotent)
+            conn.execute(
+                "UPDATE users SET is_admin=1 WHERE email=?", ("nycolas@gmail.com",)
+            )
+            conn.commit()
 
     finally:
         conn.close()

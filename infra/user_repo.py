@@ -51,11 +51,42 @@ class UserRepo:
         conn = get_connection()
         try:
             row = conn.execute(
-                "SELECT id, email, name, is_active, quota_minutes, created_at, updated_at "
+                "SELECT id, email, name, is_active, quota_minutes, is_admin, created_at, updated_at "
                 "FROM users WHERE id=?",
                 (user_id,),
             ).fetchone()
             return dict(row) if row else None
+        finally:
+            conn.close()
+
+    def get_all_users(self) -> list:
+        """Return all users with their total usage (admin only)."""
+        conn = get_connection()
+        try:
+            rows = conn.execute(
+                """
+                SELECT u.id, u.email, u.name, u.is_active, u.quota_minutes, u.is_admin,
+                       COALESCE(SUM(um.minutes), 0.0) AS usage_minutes
+                FROM users u
+                LEFT JOIN usage_minutes um ON um.user_id = u.id
+                GROUP BY u.id
+                ORDER BY u.created_at DESC
+                """
+            ).fetchall()
+            return [dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def update_quota(self, user_id: str, quota_minutes: float) -> bool:
+        """Update quota_minutes for a user. Returns True if user existed."""
+        conn = get_connection()
+        try:
+            cur = conn.execute(
+                "UPDATE users SET quota_minutes=?, updated_at=? WHERE id=?",
+                (quota_minutes, _now(), user_id),
+            )
+            conn.commit()
+            return cur.rowcount > 0
         finally:
             conn.close()
 

@@ -9,7 +9,7 @@ from apps.api import state
 from apps.api.auth.models import AdminUserItem, QuotaUpdateBody, UsageResponse, UserOut
 from apps.api.auth.routes import router as auth_router
 from apps.api.deps import get_admin_user, get_current_user
-from apps.api.routes import transcriptions, upload
+from apps.api.routes import transcriptions, upload, local
 from apps.api.ws.handler import websocket_endpoint
 from infra.db import init_db
 
@@ -17,7 +17,7 @@ app = FastAPI(title="AudioAgent")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8000", "http://127.0.0.1:8000"],
+    allow_origins=["http://localhost:8020", "http://127.0.0.1:8020"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -40,6 +40,7 @@ async def startup() -> None:
 app.include_router(auth_router)
 app.include_router(transcriptions.router)
 app.include_router(upload.router)
+app.include_router(local.router)
 app.add_api_websocket_route("/ws", websocket_endpoint)
 
 

@@ -6,6 +6,7 @@ from core.interfaces.queue import JobQueue
 from core.interfaces.repo import TranscriptionRepo
 from core.services.transcriber import transcribe_with_progress
 from infra.benchmark import BenchmarkContext
+from apps.api import state as _state
 
 
 class Worker(threading.Thread):
@@ -67,6 +68,7 @@ class Worker(threading.Thread):
 
             def progress_cb(pct: int) -> None:
                 self.repo.update_progress(job_id, pct)
+                _state.progress_store[job_id] = pct
                 cb = self.progress_callbacks.get(job_id)
                 if cb:
                     try:
@@ -117,3 +119,4 @@ class Worker(threading.Thread):
                 pass
         finally:
             self.current_job_id = None
+            _state.progress_store.pop(job_id, None)

@@ -74,7 +74,7 @@ copy .env.example .env
 python main.py
 ```
 
-Acesse **http://localhost:8000** no navegador.
+Acesse **http://localhost:8020** no navegador.
 
 | Ação | Como fazer |
 |------|-----------|

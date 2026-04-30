@@ -4,7 +4,7 @@ cd /d "%~dp0"
 
 echo.
 echo  AudioAgent iniciando...
-echo  Acesse: http://localhost:8000
+echo  Acesse: http://localhost:8020
 echo.
 python main.py
 pause

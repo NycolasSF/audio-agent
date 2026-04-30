@@ -120,6 +120,7 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(...)) -> None:
             elif action == "stop":
                 was_recording = False
                 diarize_flag = bool(data.get("diarize", False))
+                language_flag = data.get("language", "pt") or "pt"
                 stop_result = await asyncio.get_event_loop().run_in_executor(
                     None, state.recorder.stop
                 )
@@ -134,8 +135,9 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(...)) -> None:
                     continue
 
                 # Quota check before enqueuing
-                used = state.user_repo.get_usage_total(user["id"])
-                if used >= user["quota_minutes"]:
+                _quota = user["quota_minutes"]
+                used = state.user_repo.get_usage_total(user["id"]) if _quota != -1 else 0
+                if _quota != -1 and used >= _quota:
                     await ws.send_json({
                         "type": "error",
                         "message": "Cota de minutos esgotada. Gravação descartada.",
@@ -164,6 +166,7 @@ async def websocket_endpoint(ws: WebSocket, token: str = Query(...)) -> None:
                     "source": "",
                     "user_id": user["id"],
                     "diarize": int(diarize_flag),
+                    "input_language": language_flag,
                     "created_at": datetime.now().isoformat(),
                 })
                 state.queue.enqueue(card_id)

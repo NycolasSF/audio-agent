@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ```bash
 python main.py
-# Access at http://localhost:8000
+# Access at http://localhost:8020
 ```
 
 ## First-time migration (from v1 JSON)

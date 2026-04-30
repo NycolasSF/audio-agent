@@ -19,6 +19,9 @@ user_repo = UserRepo()
 # Populated by ws/handler.py when a WebSocket client is waiting for a job.
 progress_callbacks: Dict[str, Callable] = {}
 
+# job_id → last reported progress % (0–100). Written by worker, read by dashboard.
+progress_store: Dict[str, float] = {}
+
 pool = WorkerPool(
     queue=queue,
     repo=repo,

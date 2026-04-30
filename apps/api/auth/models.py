@@ -33,6 +33,21 @@ class UserOut(BaseModel):
     name: str
     quota_minutes: float
     usage_minutes: float
+    is_admin: int = 0
+
+
+class AdminUserItem(BaseModel):
+    id: str
+    email: str
+    name: str
+    is_active: int
+    quota_minutes: float
+    usage_minutes: float
+    is_admin: int
+
+
+class QuotaUpdateBody(BaseModel):
+    quota_minutes: float  # -1 = unlimited
 
 
 class UsageRecord(BaseModel):

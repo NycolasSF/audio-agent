@@ -1,3 +1,5 @@
+psutil
+rich
 fastapi
 uvicorn[standard]
 pyaudiowpatch
@@ -8,7 +10,6 @@ python-multipart
 yt-dlp
 httpx
 python-jose[cryptography]
-passlib[bcrypt]
-bcrypt<5.0
+bcrypt
 email-validator
 pyannote.audio

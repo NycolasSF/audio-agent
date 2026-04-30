@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python:*)",
+      "Bash(mkdir:*)",
+      "Bash(pip install:*)",
+      "Bash(pip index:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd:*)",
+      "Bash(curl:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(findstr :8020)",
+      "Read(//c/Users/nycol/**)",
+      "Bash(pip show:*)",
+      "Bash(echo \"exit: $?\")",
+      "Bash(powershell:*)",
+      "Bash(pip uninstall:*)",
+      "Bash(tasklist *)",
+      "Bash(shutdown:*)",
+      "Bash(git -C F:/claude-projetos/audio-agent log --all -p -S \"suppressLocalAudioPlayback\" -- static/index.html)"
+    ]
+  },
+  "disabledMcpjsonServers": [
+    "workspace-mcp"
+  ]
+}

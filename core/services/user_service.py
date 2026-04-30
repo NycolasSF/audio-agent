@@ -1,19 +1,21 @@
 from typing import Optional
 
-from passlib.context import CryptContext
-
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-
-# Pre-computed dummy hash for constant-time timing-safe login check
-_DUMMY_HASH: str = pwd_context.hash("__dummy__")
+import bcrypt
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    try:
+        return bcrypt.checkpw(plain.encode(), hashed.encode())
+    except Exception:
+        return False
+
+
+# Pre-computed dummy hash for constant-time timing-safe login check
+_DUMMY_HASH: str = hash_password("__dummy__")
 
 
 def create_user(user_repo, email: str, password: str, name: str = "") -> dict:
@@ -33,7 +35,7 @@ def authenticate_user(user_repo, email: str, password: str) -> Optional[dict]:
     """
     user = user_repo.get_by_email(email)
     if not user:
-        pwd_context.verify(password, _DUMMY_HASH)  # constant-time dummy check
+        verify_password(password, _DUMMY_HASH)  # constant-time dummy check
         return None
     if not verify_password(password, user["password_hash"]):
         return None

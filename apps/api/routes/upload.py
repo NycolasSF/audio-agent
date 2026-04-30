@@ -18,8 +18,11 @@ router = APIRouter()
 
 
 def _quota_check(current_user: dict):
+    quota = current_user["quota_minutes"]
+    if quota == -1:
+        return None  # unlimited
     used = state.user_repo.get_usage_total(current_user["id"])
-    if used >= current_user["quota_minutes"]:
+    if used >= quota:
         return JSONResponse({"error": "Cota de minutos esgotada"}, status_code=429)
     return None
 
@@ -29,6 +32,7 @@ async def upload_file(
     file: UploadFile = File(...),
     model: str = Form("base"),
     diarize: bool = Form(False),
+    language: str = Form("pt"),
     current_user: dict = Depends(get_current_user),
 ):
     err = _quota_check(current_user)
@@ -65,6 +69,7 @@ async def upload_file(
         "source": file.filename,
         "user_id": current_user["id"],
         "diarize": int(diarize),
+        "input_language": language,
         "created_at": datetime.now().isoformat(),
     })
     state.queue.enqueue(card_id)
@@ -85,6 +90,7 @@ async def import_url_endpoint(
     url: str = Form(...),
     model: str = Form("base"),
     diarize: bool = Form(False),
+    language: str = Form("pt"),
     current_user: dict = Depends(get_current_user),
 ):
     """Import audio from a YouTube, Google Drive, or direct audio/video URL."""
@@ -138,6 +144,7 @@ async def import_url_endpoint(
         "source": url,
         "user_id": user_id,
         "diarize": int(diarize),
+        "input_language": language,
         "created_at": datetime.now().isoformat(),
     })
 

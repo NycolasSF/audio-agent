@@ -1,0 +1,7 @@
+[Pool] Worker-GPU iniciado (CUDA)
+[Pool] Worker-CPU-1 iniciado (CPU)
+[Init] Device: CUDA — NVIDIA GeForce RTX 3060 Ti
+[Whisper] Carregando modelo 'base' em CUDA...
+[Whisper] Pronto.
+[Whisper] Carregando modelo 'base' em CPU...
+[Whisper] Pronto.

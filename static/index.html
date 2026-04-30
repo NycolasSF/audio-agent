@@ -600,6 +600,22 @@
         box-shadow: 0 0 8px var(--glow);
       }
       .td-check input[type="checkbox"]:checked::before { transform: scale(1); }
+      .t-row:has(.row-chk:checked) td { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+      .bulk-bar {
+        display: none; align-items: center; gap: 8px;
+        padding: 8px 14px; background: var(--glass2);
+        border-bottom: 1px solid var(--border);
+        border-radius: 10px 10px 0 0;
+      }
+      .bulk-bar.show { display: flex; }
+      .bulk-count { font-size: .8rem; color: var(--text-muted); flex: 1; }
+      .bulk-btn {
+        font-size: .75rem; padding: 4px 10px; border-radius: 6px;
+        border: 1px solid var(--border); background: var(--glass);
+        color: var(--text); cursor: pointer; transition: border-color .15s, color .15s;
+      }
+      .bulk-btn:hover { border-color: var(--accent); color: var(--accent); }
+      .bulk-btn.danger:hover { border-color: var(--record); color: var(--record); }
       .td-name {
         min-width: 160px;
         max-width: 300px;
@@ -706,8 +722,8 @@
       .dl-sidebar-btn:hover { border-color:var(--accent);color:var(--accent);background:var(--accent-dim); }
       .dl-sidebar-btn svg { flex-shrink:0;opacity:.7; }
       .retranscribe-wrap { margin-top:4px; }
-      .retranscribe-model { width:100%;background:var(--glass);border:1px solid var(--border2);border-radius:8px;color:var(--text-dim);font-size:.78rem;padding:7px 9px;font-family:inherit;outline:none;margin-bottom:8px; }
-      .retranscribe-model:focus { border-color:var(--accent); }
+      .retranscribe-model,.retranscribe-lang { width:100%;background:var(--glass);border:1px solid var(--border2);border-radius:8px;color:var(--text-dim);font-size:.78rem;padding:7px 9px;font-family:inherit;outline:none;margin-bottom:8px; }
+      .retranscribe-model:focus,.retranscribe-lang:focus { border-color:var(--accent); }
       .btn-retranscribe { width:100%;padding:9px;border-radius:50px;border:1px solid var(--accent);background:var(--accent-dim);color:var(--accent);font-size:.82rem;font-weight:700;cursor:pointer;transition:all .2s;font-family:inherit; }
       .btn-retranscribe:hover { background:var(--accent);color:#fff; }
       .btn-retranscribe:disabled { opacity:.4;cursor:not-allowed; }
@@ -1277,6 +1293,103 @@
       }
       .diarize-toggle input[type="checkbox"]:checked { border-color: var(--accent); }
       .diarize-toggle input[type="checkbox"]:checked::before { transform: scale(1); }
+      .diarize-toggle input[type="checkbox"]:disabled { opacity: 0.4; cursor: not-allowed; }
+      .diarize-toggle:has(input:disabled) { opacity: 0.5; pointer-events: none; }
+
+      /* ADMIN BUTTON */
+      .admin-btn {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.72rem;
+        font-weight: 700;
+        color: var(--accent);
+        background: var(--accent-dim);
+        border: 1px solid var(--accent);
+        border-radius: 20px;
+        padding: 4px 11px;
+        cursor: pointer;
+        transition: background 0.2s, box-shadow 0.2s;
+        letter-spacing: 0.04em;
+        white-space: nowrap;
+      }
+      .admin-btn:hover { background: rgba(159,95,255,0.25); box-shadow: 0 0 10px var(--glow); }
+
+      /* ADMIN MODAL */
+      .admin-overlay {
+        position: fixed; inset: 0; z-index: 100;
+        background: rgba(6,6,16,0.82);
+        backdrop-filter: blur(6px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+      }
+      .admin-overlay.open { display: flex; }
+      .admin-card {
+        background: var(--surface);
+        border: 1px solid var(--border2);
+        border-radius: 20px;
+        padding: 28px;
+        width: min(700px, 96vw);
+        max-height: 80vh;
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+      }
+      .admin-header {
+        display: flex; align-items: center; justify-content: space-between;
+      }
+      .admin-title {
+        font-size: 1rem; font-weight: 700;
+        background: linear-gradient(135deg, var(--accent), var(--accent2));
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      }
+      .admin-close {
+        background: none; border: none; color: var(--text-dim);
+        font-size: 1.4rem; cursor: pointer; line-height: 1;
+      }
+      .admin-close:hover { color: var(--text); }
+      .admin-table-wrap { overflow-y: auto; flex: 1; }
+      .admin-table {
+        width: 100%; border-collapse: collapse; font-size: 0.82rem;
+      }
+      .admin-table th {
+        text-align: left; color: var(--text-muted); font-weight: 600;
+        padding: 6px 10px; border-bottom: 1px solid var(--border);
+        white-space: nowrap;
+      }
+      .admin-table td {
+        padding: 8px 10px; border-bottom: 1px solid var(--border);
+        vertical-align: middle;
+      }
+      .admin-table tr:last-child td { border-bottom: none; }
+      .admin-table tr:hover td { background: var(--glass); }
+      .quota-edit-wrap { display: flex; align-items: center; gap: 6px; }
+      .quota-input {
+        width: 70px; background: var(--glass); border: 1px solid var(--border2);
+        border-radius: 6px; color: var(--text); font-size: 0.8rem;
+        padding: 4px 7px; font-family: inherit; outline: none;
+      }
+      .quota-input:focus { border-color: var(--accent); }
+      .quota-save-btn {
+        background: var(--accent-dim); border: 1px solid var(--accent);
+        border-radius: 6px; color: var(--accent); font-size: 0.75rem;
+        font-weight: 700; padding: 4px 9px; cursor: pointer; white-space: nowrap;
+        transition: background 0.2s;
+      }
+      .quota-save-btn:hover { background: rgba(159,95,255,0.3); }
+      .unlimited-badge {
+        font-size: 0.7rem; font-weight: 700; color: var(--green);
+        background: var(--green-dim); border: 1px solid var(--green);
+        border-radius: 10px; padding: 2px 8px;
+      }
+      .admin-unlimited-btn {
+        background: none; border: 1px solid var(--border2);
+        border-radius: 6px; color: var(--text-muted); font-size: 0.7rem;
+        padding: 3px 7px; cursor: pointer; white-space: nowrap;
+        transition: border-color 0.2s, color 0.2s;
+      }
+      .admin-unlimited-btn:hover { border-color: var(--green); color: var(--green); }
 
       /* USER CHIP */
       .user-chip {
@@ -1314,6 +1427,10 @@
         <div class="quota-bar"><div class="quota-bar-fill" id="quota-fill"></div></div>
         <span id="quota-label"></span>
       </div>
+      <button class="admin-btn" id="admin-btn" style="display:none" onclick="openAdminModal()" title="Gerenciar usuários">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Admin
+      </button>
       <span class="user-chip" id="user-chip" style="display:none" onclick="authLogout()"></span>
       <div class="conn-dot" id="conn-dot"></div>
     </header>
@@ -1402,6 +1519,10 @@
         <!-- Multi-tab mode picker -->
         <div class="mode-picker" id="mode-picker">
           <div class="sources-list" id="sources-list"></div>
+          <label class="diarize-toggle" id="silent-rec-wrap">
+            <input type="checkbox" id="silent-rec" checked onchange="onSilentToggle(this)" />
+            <span id="silent-rec-label">Gravar sem escutar</span>
+          </label>
           <button class="add-src-btn" id="add-src-btn" onclick="addTabSource()">
             <svg
               width="13"
@@ -1448,6 +1569,14 @@
       </div>
 
       <div class="t-table-wrap" id="table-wrap" style="display: none">
+        <div class="bulk-bar" id="bulk-bar">
+          <span class="bulk-count" id="bulk-count">0 selecionadas</span>
+          <button class="bulk-btn" onclick="bulkDl('txt')">⬇ TXT</button>
+          <button class="bulk-btn" onclick="bulkDl('md')">⬇ MD</button>
+          <button class="bulk-btn" onclick="bulkDl('vtt')">⬇ VTT</button>
+          <button class="bulk-btn danger" onclick="bulkDelete()">Excluir</button>
+          <button class="bulk-btn" onclick="clearSelection()">✕ Cancelar</button>
+        </div>
         <table class="t-table">
           <thead>
             <tr>
@@ -1495,7 +1624,7 @@
             <polyline points="17 8 12 3 7 8" />
             <line x1="12" y1="3" x2="12" y2="15" />
           </svg>
-          <p>Arraste um arquivo aqui<br />ou clique para selecionar</p>
+          <p>Arraste arquivos aqui<br />ou clique para selecionar</p>
           <small>.mp3 · .wav · .m4a · .mp4 · .ogg · .webm · .flac</small>
         </div>
         <div class="file-preview" id="file-preview">
@@ -1602,6 +1731,14 @@
                 <option value="medium">Whisper medium</option>
                 <option value="large">Whisper large</option>
               </select>
+              <select class="retranscribe-lang" id="detail-lang-sel">
+                <option value="pt" selected>Português (PT-BR)</option>
+                <option value="en">Inglês (EN)</option>
+                <option value="es">Espanhol (ES)</option>
+                <option value="fr">Francês (FR)</option>
+                <option value="de">Alemão (DE)</option>
+                <option value="auto">Detectar automaticamente</option>
+              </select>
               <button class="btn-retranscribe" id="btn-retranscribe" onclick="doRetranscribe()">
                 ↻ Re-transcrever
               </button>
@@ -1614,10 +1751,10 @@
     <input
       type="file"
       id="file-input"
-
+      multiple
       accept=".mp3,.mp4,.wav,.m4a,.ogg,.webm,.flac"
       style="display: none"
-      onchange="onFileSelected(this.files[0])"
+      onchange="onFileSelected(this.files)"
     />
     <div id="toast"></div>
 
@@ -1652,7 +1789,8 @@
 
       // tab-mode state (each source has its own recorder)
       let tabSources = [],
-        tabCtx = null;
+        tabCtx = null,
+        tabSilent = true;
       const pollingTimers = new Map(); // id → interval id
 
       // === WAVEFORM ===
@@ -1712,6 +1850,7 @@
 
       // === AUTH ===
       let _authMode = "login";
+      let _currentUser = null;
 
       function getToken() { return localStorage.getItem("token"); }
       function setToken(t) { localStorage.setItem("token", t); }
@@ -1737,6 +1876,8 @@
         document.getElementById("auth-overlay").style.display = "flex";
         document.getElementById("user-chip").style.display = "none";
         document.getElementById("quota-wrap").style.display = "none";
+        document.getElementById("admin-btn").style.display = "none";
+        _currentUser = null;
       }
 
       function authToggleMode() {
@@ -1788,7 +1929,7 @@
               body: JSON.stringify({ email, password, name }),
             });
             const d = await r.json();
-            if (!r.ok) { errEl.textContent = d.detail || "Erro ao registrar."; return; }
+            if (!r.ok) { errEl.textContent = (typeof d.detail === "string" ? d.detail : JSON.stringify(d.detail)) || "Erro ao registrar."; return; }
           }
           // Login (also runs after register to get token)
           const r2 = await fetch("/auth/login", {
@@ -1797,7 +1938,7 @@
             body: JSON.stringify({ email, password }),
           });
           const d2 = await r2.json();
-          if (!r2.ok) { errEl.textContent = d2.detail || "Credenciais inválidas."; return; }
+          if (!r2.ok) { errEl.textContent = (typeof d2.detail === "string" ? d2.detail : JSON.stringify(d2.detail)) || "Credenciais inválidas."; return; }
           setToken(d2.access_token);
           document.getElementById("auth-overlay").style.display = "none";
           await authFetchMe();
@@ -1812,10 +1953,12 @@
           const r = await apiFetch("/me");
           if (!r.ok) return;
           const u = await r.json();
+          _currentUser = u;
           const chip = document.getElementById("user-chip");
           chip.textContent = u.email;
           chip.style.display = "inline-flex";
           updateQuotaBar(u.usage_minutes, u.quota_minutes);
+          document.getElementById("admin-btn").style.display = u.is_admin ? "inline-flex" : "none";
         } catch (e) {}
       }
 
@@ -1823,6 +1966,14 @@
         const wrap = document.getElementById("quota-wrap");
         const fill = document.getElementById("quota-fill");
         const label = document.getElementById("quota-label");
+        if (quota === -1) {
+          // Unlimited
+          fill.style.width = "100%";
+          fill.style.background = "var(--green)";
+          label.textContent = `${used.toFixed(1)} min · Ilimitado`;
+          wrap.style.display = "flex";
+          return;
+        }
         if (!quota) { wrap.style.display = "none"; return; }
         const pct = Math.min(100, (used / quota) * 100);
         fill.style.width = `${pct}%`;
@@ -1840,16 +1991,114 @@
         showAuthOverlay();
       }
 
+      // === ADMIN MODAL ===
+      async function openAdminModal() {
+        document.getElementById("admin-overlay").classList.add("open");
+        await loadAdminUsers();
+      }
+
+      function closeAdminModal() {
+        document.getElementById("admin-overlay").classList.remove("open");
+      }
+
+      async function loadAdminUsers() {
+        const tbody = document.getElementById("admin-users-body");
+        tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px">Carregando...</td></tr>`;
+        try {
+          const r = await apiFetch("/admin/users");
+          if (!r.ok) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--record);text-align:center;padding:20px">Erro ao carregar usuários</td></tr>`; return; }
+          const users = await r.json();
+          if (!users.length) { tbody.innerHTML = `<tr><td colspan="5" style="color:var(--text-muted);text-align:center;padding:20px">Nenhum usuário cadastrado</td></tr>`; return; }
+          tbody.innerHTML = users.map(u => {
+            const isUnlimited = u.quota_minutes === -1;
+            const quotaDisplay = isUnlimited
+              ? `<span class="unlimited-badge">Ilimitado</span>`
+              : `<input class="quota-input" id="qi-${u.id}" type="number" min="0" step="10" value="${u.quota_minutes.toFixed(0)}">`;
+            const usageText = isUnlimited
+              ? `${u.usage_minutes.toFixed(1)} min`
+              : `${u.usage_minutes.toFixed(1)} / ${u.quota_minutes.toFixed(0)} min`;
+            return `<tr>
+              <td style="color:var(--text)">${u.email}${u.is_admin ? ' <span style="color:var(--accent);font-size:.68rem;font-weight:700">ADMIN</span>' : ''}</td>
+              <td style="color:var(--text-dim)">${u.name || '—'}</td>
+              <td style="color:var(--text-dim);white-space:nowrap">${usageText}</td>
+              <td>
+                <div class="quota-edit-wrap">
+                  ${quotaDisplay}
+                  ${!isUnlimited ? `<button class="quota-save-btn" onclick="saveQuota('${u.id}')">Salvar</button>` : ''}
+                  <button class="admin-unlimited-btn" onclick="setUnlimited('${u.id}', ${isUnlimited})" title="${isUnlimited ? 'Remover ilimitado' : 'Tornar ilimitado'}">
+                    ${isUnlimited ? 'Limitar' : '∞'}
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+          }).join('');
+        } catch (e) {
+          tbody.innerHTML = `<tr><td colspan="5" style="color:var(--record);text-align:center;padding:20px">Erro de rede</td></tr>`;
+        }
+      }
+
+      async function saveQuota(userId) {
+        const input = document.getElementById(`qi-${userId}`);
+        if (!input) return;
+        const val = parseFloat(input.value);
+        if (isNaN(val) || val < 0) { toast("Valor inválido", true); return; }
+        const r = await apiFetch(`/admin/users/${userId}/quota`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quota_minutes: val }),
+        });
+        if (r.ok) {
+          toast("Cota atualizada");
+          if (_currentUser && _currentUser.id === userId) await authFetchMe();
+          await loadAdminUsers();
+        } else {
+          toast("Erro ao salvar", true);
+        }
+      }
+
+      async function setUnlimited(userId, currentIsUnlimited) {
+        let newQuota;
+        if (currentIsUnlimited) {
+          const val = prompt("Digite a cota em minutos para este usuário:");
+          if (val === null) return;
+          newQuota = parseFloat(val);
+          if (isNaN(newQuota) || newQuota < 0) { toast("Valor inválido", true); return; }
+        } else {
+          newQuota = -1;
+        }
+        const r = await apiFetch(`/admin/users/${userId}/quota`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ quota_minutes: newQuota }),
+        });
+        if (r.ok) {
+          toast("Cota atualizada");
+          if (_currentUser && _currentUser.id === userId) await authFetchMe();
+          await loadAdminUsers();
+        } else {
+          toast("Erro ao salvar", true);
+        }
+      }
+
       async function checkAuthOnStart() {
-        if (!getToken()) { showAuthOverlay(); return; }
+        if (!getToken()) {
+          // Tenta dev-login automático (só funciona se DEV_AUTO_LOGIN=true no servidor)
+          try {
+            const dr = await fetch("/auth/dev-login", { method: "POST" });
+            if (dr.ok) { const dd = await dr.json(); setToken(dd.access_token); }
+            else { showAuthOverlay(); return; }
+          } catch (e) { showAuthOverlay(); return; }
+        }
         try {
           const r = await fetch("/me", { headers: authHeaders() });
           if (!r.ok) { clearToken(); showAuthOverlay(); return; }
           const u = await r.json();
+          _currentUser = u;
           const chip = document.getElementById("user-chip");
           chip.textContent = u.email;
           chip.style.display = "inline-flex";
           updateQuotaBar(u.usage_minutes, u.quota_minutes);
+          document.getElementById("admin-btn").style.display = u.is_admin ? "inline-flex" : "none";
           connect();
         } catch (e) {
           showAuthOverlay();
@@ -2004,7 +2253,7 @@
           // We immediately stop video tracks after - we only need audio
           const stream = await navigator.mediaDevices.getDisplayMedia({
             video: { displaySurface: "browser" },
-            audio: { suppressLocalAudioPlayback: true },
+            audio: { suppressLocalAudioPlayback: tabSilent },
           });
           // Stop video tracks immediately - audio only needed
           stream.getVideoTracks().forEach((t) => t.stop());
@@ -2063,6 +2312,8 @@
       <button class="rm-src" onclick="removeSource(${i})" ${recActive ? 'disabled title="Pare a gravação antes de remover"' : ''}>✕</button>`;
           sourcesList.appendChild(el);
         });
+        const silentChk = document.getElementById('silent-rec');
+        if (silentChk) silentChk.disabled = tabSources.some(s => s.isRecording);
       }
 
       function toggleSourceRec(i) {
@@ -2128,6 +2379,12 @@
 
       function updateCrossWarn() {
         crossWarn.style.display = tabSources.some((s) => s.isCross) ? "block" : "none";
+      }
+
+      function onSilentToggle(chk) {
+        tabSilent = chk.checked;
+        document.getElementById('silent-rec-label').textContent =
+          tabSilent ? 'Gravar sem escutar' : 'Gravar escutando';
       }
 
       // Legacy stubs (no longer used but keep for safety)
@@ -2249,24 +2506,27 @@
         }
       }
 
-      let selectedFile = null;
+      let selectedFiles = [];
       function openUploadModal() {
         document.getElementById("upload-modal").classList.add("open");
       }
       function closeUploadModal() {
         document.getElementById("upload-modal").classList.remove("open");
-        selectedFile = null;
+        selectedFiles = [];
         document.getElementById("file-preview").classList.remove("show");
         document.getElementById("btn-transcribe").disabled = true;
         document.getElementById("file-input").value = "";
         const dc = document.getElementById("diarize-upload");
         if (dc) dc.checked = false;
       }
-      function onFileSelected(f) {
-        if (!f) return;
-        selectedFile = f;
-        document.getElementById("fp-name").textContent = f.name;
-        document.getElementById("fp-size").textContent = fmtSize(f.size);
+      function onFileSelected(fileList) {
+        const files = [...fileList].filter(f => f);
+        if (!files.length) return;
+        selectedFiles = files;
+        const totalSize = files.reduce((a, f) => a + f.size, 0);
+        document.getElementById("fp-name").textContent =
+          files.length === 1 ? files[0].name : `${files.length} arquivos selecionados`;
+        document.getElementById("fp-size").textContent = fmtSize(totalSize);
         document.getElementById("file-preview").classList.add("show");
         document.getElementById("btn-transcribe").disabled = false;
       }
@@ -2280,35 +2540,38 @@
       function onDrop(e) {
         e.preventDefault();
         onDragLeave();
-        const f = e.dataTransfer.files[0];
-        if (f) onFileSelected(f);
+        if (e.dataTransfer.files.length) onFileSelected(e.dataTransfer.files);
       }
       async function submitUpload() {
-        if (!selectedFile) return;
-        const originalName = selectedFile.name; // capture before modal close nullifies it
-        const fd = new FormData();
-        fd.append("file", selectedFile);
-        fd.append("model", modelSel.value);
-        fd.append("diarize", document.getElementById("diarize-upload")?.checked ? "true" : "false");
+        if (!selectedFiles.length) return;
         const btn = document.getElementById("btn-transcribe");
         btn.disabled = true;
-        btn.textContent = "Enviando…";
-        try {
-          const r = await apiFetch("/upload", { method: "POST", body: fd });
-          const j = await r.json();
-          closeUploadModal();
-          btn.textContent = "Transcrever";
-          if (j.error) {
-            toast(j.error, true);
-            return;
+        const filesToUpload = [...selectedFiles];
+        btn.textContent = filesToUpload.length > 1 ? `Enviando 0/${filesToUpload.length}…` : "Enviando…";
+        closeUploadModal();
+        const diarize = document.getElementById("diarize-upload")?.checked ? "true" : "false";
+        let ok = 0;
+        for (let i = 0; i < filesToUpload.length; i++) {
+          const f = filesToUpload[i];
+          if (filesToUpload.length > 1) btn.textContent = `Enviando ${i + 1}/${filesToUpload.length}…`;
+          const fd = new FormData();
+          fd.append("file", f);
+          fd.append("model", modelSel.value);
+          fd.append("diarize", diarize);
+          try {
+            const r = await apiFetch("/upload", { method: "POST", body: fd });
+            const j = await r.json();
+            if (j.error) { toast(`${f.name}: ${j.error}`, true); continue; }
+            createRow({ ...j, fromUpload: true, source: f.name });
+            startPolling(j.id);
+            ok++;
+          } catch (e) {
+            toast(`${f.name}: ${e.message}`, true);
           }
-          createRow({ ...j, fromUpload: true, source: originalName });
-          startPolling(j.id);
-        } catch (e) {
-          toast("Erro: " + e.message, true);
-          btn.disabled = false;
-          btn.textContent = "Transcrever";
         }
+        btn.disabled = false;
+        btn.textContent = "Transcrever";
+        if (ok > 0 && filesToUpload.length > 1) toast(`${ok} de ${filesToUpload.length} arquivos enviados`);
       }
 
       // === POLLING ===
@@ -2368,6 +2631,7 @@
           device: msg.device,
           source: srcName,
           _defaultTitle: defaultTitle,
+          input_language: msg.input_language || 'pt',
         });
 
         const tr = document.createElement("tr");
@@ -2376,7 +2640,7 @@
         tr.style.cursor = "pointer";
         tr.onclick = () => openDetail(msg.id);
         tr.innerHTML = `
-    <td class="td-check col-check"><input type="checkbox" class="row-chk" data-id="${msg.id}" onclick="event.stopPropagation()"/></td>
+    <td class="td-check col-check"><input type="checkbox" class="row-chk" data-id="${msg.id}" onclick="event.stopPropagation()" onchange="updateBulkBar()"/></td>
     <td class="td-name">
       <div class="title-wrap">
         <div contenteditable="true" class="t-title-edit" id="title-${msg.id}" spellcheck="false" data-ph="Clique para nomear..."
@@ -2533,6 +2797,7 @@
         currentDetailId = id;
         document.getElementById('detail-title').value = d.title || d._defaultTitle || '';
         document.getElementById('detail-model-sel').value = d.model || 'base';
+        document.getElementById('detail-lang-sel').value = d.input_language || 'pt';
         document.getElementById('detail-meta').textContent =
           [d.timestamp, d.duration ? fmtDur(d.duration) : null, d.language ? d.language.toUpperCase() : null, d.model]
             .filter(Boolean).join(' · ');
@@ -2579,10 +2844,11 @@
         if (!currentDetailId) return;
         const tid = currentDetailId; // capture BEFORE closeDetail() zeros it
         const model = document.getElementById('detail-model-sel').value;
+        const language = document.getElementById('detail-lang-sel').value;
         const btn = document.getElementById('btn-retranscribe');
         btn.disabled = true; btn.textContent = 'Iniciando…';
         try {
-          const fd = new FormData(); fd.append('model', model);
+          const fd = new FormData(); fd.append('model', model); fd.append('language', language);
           const r = await apiFetch(`/transcriptions/${tid}/retranscribe`, {method:'POST', body:fd});
           const j = await r.json();
           if (j.error) { toast(j.error, true); btn.disabled=false; btn.textContent='↻ Re-transcrever'; return; }
@@ -2700,6 +2966,100 @@
       }
       function toggleAll(v) {
         document.querySelectorAll(".row-chk").forEach((c) => (c.checked = v));
+        updateBulkBar();
+      }
+
+      function getSelectedIds() {
+        return [...document.querySelectorAll(".row-chk:checked")].map(c => c.dataset.id);
+      }
+
+      function updateBulkBar() {
+        const ids = getSelectedIds();
+        const bar = document.getElementById("bulk-bar");
+        const cnt = document.getElementById("bulk-count");
+        const all = document.getElementById("chk-all");
+        const total = document.querySelectorAll(".row-chk").length;
+        bar.classList.toggle("show", ids.length > 0);
+        cnt.textContent = `${ids.length} selecionada${ids.length !== 1 ? "s" : ""}`;
+        if (all) all.indeterminate = ids.length > 0 && ids.length < total;
+        if (all) all.checked = ids.length > 0 && ids.length === total;
+      }
+
+      function clearSelection() {
+        document.querySelectorAll(".row-chk").forEach(c => c.checked = false);
+        updateBulkBar();
+      }
+
+      // ── Bulk downloads ─────────────────────────────────────────────────────
+
+      function bulkDl(fmt) {
+        const ids = getSelectedIds().filter(id => {
+          const d = getData(id);
+          return d && d.text;
+        });
+        if (!ids.length) { toast("Nenhuma transcrição concluída selecionada", true); return; }
+
+        if (fmt === "txt") {
+          const lines = ids.map(id => {
+            const d = getData(id);
+            const title = d.title || d._defaultTitle || id;
+            return `# ${title}\nData: ${d.timestamp || ""} | Duração: ${d.duration || 0}s | Modelo: ${d.model || ""}\n${"─".repeat(60)}\n\n${d.text || ""}\n`;
+          });
+          dlBlob(lines.join("\n\n"), `transcricoes_${ids.length}.txt`, "text/plain");
+
+        } else if (fmt === "md") {
+          const lines = ids.map(id => {
+            const d = getData(id);
+            const title = d.title || d._defaultTitle || id;
+            let md = `---\ntitulo: ${title}\ndata: ${d.timestamp || ""}\nduracao: ${d.duration || 0}s\nmodelo: ${d.model || ""}\n---\n\n# ${title}\n\n${d.text || ""}\n`;
+            if (d.segments?.length) {
+              md += `\n## Segmentos\n\n| Início | Fim | Texto |\n|--------|-----|-------|\n`;
+              d.segments.forEach(s => { md += `| ${toVtt(s.start)} | ${toVtt(s.end)} | ${s.text} |\n`; });
+            }
+            return md;
+          });
+          dlBlob(lines.join("\n\n---\n\n"), `transcricoes_${ids.length}.md`, "text/markdown");
+
+        } else if (fmt === "vtt") {
+          const hasSeg = ids.filter(id => getData(id)?.segments?.length);
+          if (!hasSeg.length) { toast("Nenhuma transcrição com segmentos VTT", true); return; }
+          let vtt = "WEBVTT\n\n";
+          let offset = 0;
+          hasSeg.forEach(id => {
+            const d = getData(id);
+            const title = d.title || d._defaultTitle || id;
+            vtt += `NOTE ${title}\n\n`;
+            d.segments.forEach((s, i) => {
+              const start = s.start + offset;
+              const end = s.end + offset;
+              vtt += `${i + 1}\n${toVtt(start)} --> ${toVtt(end)}\n${s.text}\n\n`;
+            });
+            const last = d.segments[d.segments.length - 1];
+            offset += (last?.end || 0) + 1;
+          });
+          dlBlob(vtt, `transcricoes_${hasSeg.length}.vtt`, "text/vtt");
+        }
+      }
+
+      async function bulkDelete() {
+        const ids = getSelectedIds();
+        if (!ids.length) return;
+        if (!confirm(`Excluir ${ids.length} transcrição(ões)? Esta ação não pode ser desfeita.`)) return;
+        let ok = 0;
+        for (const id of ids) {
+          try {
+            const r = await apiFetch(`/transcriptions/${id}`, { method: "DELETE" });
+            if (r.ok) {
+              document.getElementById("row-" + id)?.remove();
+              store.delete(id);
+              ok++;
+            }
+          } catch (e) { /* continue */ }
+        }
+        updateBulkBar();
+        const tbody = document.getElementById("t-body");
+        document.getElementById("table-wrap").style.display = tbody.children.length ? "" : "none";
+        toast(`${ok} excluída${ok !== 1 ? "s" : ""}`);
       }
 
       // === COPY / EXPORT ===
@@ -2723,7 +3083,7 @@
         if (!d) return;
         dlBlob(
           `Transcrição — ${d.timestamp}\nDuração: ${d.duration}s | Idioma: ${(d.language || "?").toUpperCase()} | Modelo: ${d.model}\n${"─".repeat(50)}\n\n${d.text || ""}`,
-          `transcricao_${id}.txt`,
+          `${safeFilename(d.title, id)}.txt`,
           "text/plain",
         );
       }
@@ -2737,7 +3097,7 @@
             md += `| ${toVtt(s.start)} | ${toVtt(s.end)} | ${s.text} |\n`;
           });
         }
-        dlBlob(md, `transcricao_${id}.md`, "text/markdown");
+        dlBlob(md, `${safeFilename(d.title, id)}.md`, "text/markdown");
       }
       function dlVtt(id) {
         const d = getData(id);
@@ -2749,7 +3109,7 @@
         d.segments.forEach((s, i) => {
           v += `${i + 1}\n${toVtt(s.start)} --> ${toVtt(s.end)}\n${s.text}\n\n`;
         });
-        dlBlob(v, `transcricao_${id}.vtt`, "text/vtt");
+        dlBlob(v, `${safeFilename(d.title, id)}.vtt`, "text/vtt");
       }
       function dlPdf(id) {
         const d = getData(id);
@@ -2759,11 +3119,16 @@
         if (d.segments?.length) {
           seg = `<h3>Segmentos</h3><table><tr><th>Início</th><th>Fim</th><th>Texto</th></tr>${d.segments.map((s) => `<tr><td>${toVtt(s.start)}</td><td>${toVtt(s.end)}</td><td>${s.text.replace(/</g, "&lt;")}</td></tr>`).join("")}</table>`;
         }
-        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Transcrição</title><style>body{font-family:Segoe UI,sans-serif;max-width:800px;margin:40px auto}.meta{color:#666;font-size:.85rem;margin-bottom:20px}.body{line-height:1.7;border-left:3px solid #9f5fff;padding-left:16px;white-space:pre-wrap}table{width:100%;border-collapse:collapse;font-size:.82rem}td,th{border:1px solid #ddd;padding:6px 10px}th{background:#f0f0f8}</style></head><body><h1>Transcrição</h1><div class="meta">${d.timestamp} · ${d.duration}s · ${(d.language || "?").toUpperCase()} · ${d.model}</div><div class="body">${txt}</div>${seg}</body></html>`;
+        const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${safeFilename(d.title, id)}</title><style>body{font-family:Segoe UI,sans-serif;max-width:800px;margin:40px auto}.meta{color:#666;font-size:.85rem;margin-bottom:20px}.body{line-height:1.7;border-left:3px solid #9f5fff;padding-left:16px;white-space:pre-wrap}table{width:100%;border-collapse:collapse;font-size:.82rem}td,th{border:1px solid #ddd;padding:6px 10px}th{background:#f0f0f8}</style></head><body><h1>Transcrição</h1><div class="meta">${d.timestamp} · ${d.duration}s · ${(d.language || "?").toUpperCase()} · ${d.model}</div><div class="body">${txt}</div>${seg}</body></html>`;
         const w = window.open("", "_blank");
         w.document.write(html);
         w.document.close();
         setTimeout(() => w.print(), 400);
+      }
+
+      function safeFilename(title, id) {
+        const s = (title || '').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim();
+        return s || `transcricao_${id}`;
       }
 
       // === HELPERS ===
@@ -2888,6 +3253,30 @@
           <span id="auth-toggle-text">Não tem conta? <b>Registrar</b></span>
         </div>
         <div id="auth-error" style="color:var(--record);font-size:0.8rem;min-height:1.1rem;text-align:center"></div>
+      </div>
+    </div>
+
+    <!-- ADMIN MODAL -->
+    <div class="admin-overlay" id="admin-overlay" onclick="if(event.target===this)closeAdminModal()">
+      <div class="admin-card">
+        <div class="admin-header">
+          <span class="admin-title">Gerenciar Usuários</span>
+          <button class="admin-close" onclick="closeAdminModal()">&#x2715;</button>
+        </div>
+        <div class="admin-table-wrap">
+          <table class="admin-table">
+            <thead>
+              <tr>
+                <th>Email</th>
+                <th>Nome</th>
+                <th>Uso</th>
+                <th>Cota (min)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="admin-users-body"></tbody>
+          </table>
+        </div>
       </div>
     </div>
   </body>
