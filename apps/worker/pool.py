@@ -1,10 +1,63 @@
 """WorkerPool — gerencia workers GPU e CPU em paralelo."""
+import threading
+import time
 import torch
 from typing import Callable, Dict
 
 from core.interfaces.queue import JobQueue
 from core.interfaces.repo import TranscriptionRepo
 from apps.worker.worker import Worker
+
+
+class _IdleModelReaper(threading.Thread):
+    """Descarrega modelos da VRAM quando o pool fica ocioso.
+
+    Quando todos os workers estão sem job ativo por ``idle_seconds`` segundos
+    consecutivos, libera Whisper e diarizador da memória. Próximo job paga o
+    custo de recarga (alguns segundos), mas a VRAM fica livre enquanto ocioso.
+    """
+
+    POLL_SECONDS = 5
+
+    def __init__(self, pool: "WorkerPool", idle_seconds: int):
+        super().__init__(daemon=True, name="IdleModelReaper")
+        self._pool = pool
+        self._idle_seconds = idle_seconds
+        self._idle_since: float | None = time.time()
+        self._unloaded: bool = False
+
+    def run(self) -> None:
+        while True:
+            time.sleep(self.POLL_SECONDS)
+            try:
+                if self._pool.current_job_id is not None:
+                    self._idle_since = None
+                    self._unloaded = False
+                    continue
+                if self._unloaded:
+                    continue
+                if self._idle_since is None:
+                    self._idle_since = time.time()
+                    continue
+                if time.time() - self._idle_since >= self._idle_seconds:
+                    self._unload()
+                    self._unloaded = True
+                    self._idle_since = None
+            except Exception as e:
+                print(f"[Reaper] erro inesperado: {e}")
+
+    @staticmethod
+    def _unload() -> None:
+        try:
+            from core.services.transcriber import unload_models
+            unload_models()
+        except Exception as e:
+            print(f"[Reaper] falha ao descarregar Whisper: {e}")
+        try:
+            from core.services.diarizer import unload_pipeline
+            unload_pipeline()
+        except Exception as e:
+            print(f"[Reaper] falha ao descarregar diarizer: {e}")
 
 
 class WorkerPool:
@@ -26,9 +79,13 @@ class WorkerPool:
         user_repo=None,
         gpu_util_limit: int = 70,
         cpu_workers: int = 1,
+        model_idle_seconds: int = 0,
     ):
         self._gpu_worker: Worker | None = None
         self._cpu_worker_list: list[Worker] = []
+        self._reaper: _IdleModelReaper | None = (
+            _IdleModelReaper(self, model_idle_seconds) if model_idle_seconds > 0 else None
+        )
 
         if torch.cuda.is_available():
             self._gpu_worker = Worker(
@@ -83,6 +140,12 @@ class WorkerPool:
         for w in self._workers:
             w.start()
             print(f"[Pool] {w.name} iniciado ({w.device.upper()})")
+        if self._reaper:
+            self._reaper.start()
+            print(
+                f"[Pool] IdleModelReaper iniciado "
+                f"(idle_timeout={self._reaper._idle_seconds}s)"
+            )
 
     def is_processing(self, job_id: str) -> bool:
         """Retorna True se qualquer worker estiver processando este job."""

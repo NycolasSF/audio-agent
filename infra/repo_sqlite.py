@@ -99,13 +99,14 @@ class SQLiteRepo(TranscriptionRepo):
                 """
                 UPDATE jobs
                 SET status='done', percent=100, text=?, language=?,
-                    segments=?, error=NULL, updated_at=?
+                    segments=?, error=?, updated_at=?
                 WHERE id=?
                 """,
                 (
                     result.get("text"),
                     result.get("language"),
                     json.dumps(result.get("segments", [])),
+                    result.get("error"),
                     _now(),
                     job_id,
                 ),

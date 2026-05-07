@@ -1,5 +1,7 @@
+import gc
 import importlib
 import os
+import threading
 import time
 
 import tqdm as _tqdm_pkg
@@ -9,6 +11,7 @@ import whisper
 _wt = importlib.import_module("whisper.transcribe")
 
 _model_cache: dict = {}
+_model_lock = threading.Lock()
 
 
 def get_device() -> str:
@@ -17,11 +20,32 @@ def get_device() -> str:
 
 def get_model(model_name: str, device: str):
     key = (model_name, device)
-    if key not in _model_cache:
-        print(f"[Whisper] Carregando modelo '{model_name}' em {device.upper()}...")
-        _model_cache[key] = whisper.load_model(model_name, device=device)
-        print(f"[Whisper] Pronto.")
-    return _model_cache[key]
+    with _model_lock:
+        if key not in _model_cache:
+            print(f"[Whisper] Carregando modelo '{model_name}' em {device.upper()}...")
+            _model_cache[key] = whisper.load_model(model_name, device=device)
+            print(f"[Whisper] Pronto.")
+        return _model_cache[key]
+
+
+def unload_models() -> None:
+    """Libera todos os modelos Whisper da memória/VRAM.
+
+    Próxima chamada a ``get_model`` recarrega do disco.
+    """
+    with _model_lock:
+        if not _model_cache:
+            return
+        count = len(_model_cache)
+        _model_cache.clear()
+    print(f"[Whisper] Descarregado(s) {count} modelo(s) da memória.")
+    gc.collect()
+    if torch.cuda.is_available():
+        try:
+            torch.cuda.empty_cache()
+            torch.cuda.ipc_collect()
+        except Exception:
+            pass
 
 
 def _throttle_gpu(limit_pct: int) -> None:
@@ -68,7 +92,7 @@ def transcribe_with_progress(
 
         _wt.tqdm = _TqdmProxy()
         try:
-            opts = {"verbose": False}
+            opts = {"verbose": False, "word_timestamps": True}
             if language:
                 opts["language"] = language
             result = model.transcribe(file_path, **opts)
@@ -84,6 +108,15 @@ def transcribe_with_progress(
                     "start": round(s["start"], 3),
                     "end": round(s["end"], 3),
                     "text": s["text"].strip(),
+                    "words": [
+                        {
+                            "word": w["word"],
+                            "start": round(w["start"], 3),
+                            "end": round(w["end"], 3),
+                            "probability": round(float(w.get("probability", 1.0)), 4),
+                        }
+                        for w in s.get("words", [])
+                    ],
                 }
                 for s in result.get("segments", [])
             ],

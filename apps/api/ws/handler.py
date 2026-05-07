@@ -38,6 +38,7 @@ async def _poll_job(ws: WebSocket, card_id: str, loop: asyncio.AbstractEventLoop
                     "text": job["text"] or "",
                     "language": job["language"] or "?",
                     "segments": job["segments"] or [],
+                    "error": job["error"],
                 })
                 break
 

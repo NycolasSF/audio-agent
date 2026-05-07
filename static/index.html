@@ -2137,6 +2137,7 @@
                 "Transcrição concluída",
                 autoTitle(m.text, "") || m.text?.slice(0, 80) || "",
               );
+              if (m.error) toast(m.error, true);
               completeRow(m);
               break;
             case "transcription_error":
@@ -2591,6 +2592,7 @@
               updateProg(id, 100);
               sndDone();
               notify("Transcrição concluída", autoTitle(j.text, "") || j.text?.slice(0, 80) || "");
+              if (j.error) toast(j.error, true);
               completeRow(j);
             } else if (j.status === "stuck") {
               // Server restarted mid-transcription — item is orphaned, show error

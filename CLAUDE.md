@@ -25,19 +25,61 @@ pip install -r requirements.txt
 
 > For NVIDIA GPU support, install PyTorch with CUDA from [pytorch.org](https://pytorch.org/get-started/locally/) **before** running pip install.
 
-## Environment
+## Speaker diarization (WSL2 microservice)
 
-Copy `.env.example` to `.env` to set the default Whisper model:
+3D-Speaker (Alibaba/ModelScope) segfaults under native Python on Windows, so diarization runs inside **WSL2 Ubuntu** as a separate FastAPI microservice on port 9020. The Windows app talks to it over HTTP.
 
-```env
-WHISPER_MODEL=base   # tiny | base | small | medium | large | large-v3
+**One-time WSL setup** (already done on this machine — re-run only on a fresh box):
+
+```powershell
+# 1. Install Ubuntu in WSL2
+wsl --install -d Ubuntu --no-launch
+wsl --set-default Ubuntu
+
+# 2. Inside Ubuntu (as root): install uv + Python 3.12 + venv + PyTorch CUDA + modelscope deps
+wsl -d Ubuntu -u root -- bash -c "
+  curl -LsSf https://astral.sh/uv/install.sh | sh &&
+  apt-get update -y && DEBIAN_FRONTEND=noninteractive apt-get install -y ffmpeg libsndfile1 &&
+  /root/.local/bin/uv python install 3.12 &&
+  /root/.local/bin/uv venv --python 3.12 /opt/audio-diarizer/venv &&
+  export VIRTUAL_ENV=/opt/audio-diarizer/venv &&
+  /root/.local/bin/uv pip install torch torchaudio --index-url https://download.pytorch.org/whl/cu124 &&
+  /root/.local/bin/uv pip install 'numpy<2' modelscope datasets funasr fastapi uvicorn soundfile \
+    addict simplejson sortedcontainers pillow opencv-python-headless hdbscan umap-learn pyyaml kaldiio librosa scipy
+"
 ```
 
-The model can also be changed at runtime via the UI without restarting the server.
+**Daily usage** — start the diarizer service before launching the Windows app (any terminal):
+
+```powershell
+wsl -d Ubuntu -u root -- /mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh
+```
+
+Then in another terminal:
+
+```powershell
+python main.py
+```
+
+If diarization is disabled for a job (`diarize=False`), the microservice doesn't need to be running.
+
+**Models** are pre-downloaded under `models/modelscope/` (~110 MB). The microservice uses `/mnt/f/claude-projetos/audio-agent/models/modelscope/` directly — do not delete this folder.
+
+## Environment
+
+Copy `.env.example` to `.env` to set the default Whisper model and diarizer URL:
+
+```env
+WHISPER_MODEL=base       # tiny | base | small | medium | large | large-v3
+DIARIZER_URL=http://127.0.0.1:9020   # WSL microservice (see above)
+DIARIZER_TIMEOUT=1800    # seconds — bump for very long audios
+```
+
+The Whisper model can be changed at runtime via the UI without restarting the server.
 
 ## Architecture
 
-**Windows-only** — audio capture depends on WASAPI loopback (`pyaudiowpatch`), which only works on Windows.
+**Hybrid Windows + WSL2** — audio capture and Whisper transcription run on Windows (WASAPI loopback via `pyaudiowpatch` is Windows-only). Speaker diarization runs in WSL2 (3D-Speaker has no working Windows wheel) as a microservice the app calls over HTTP.
 
 ### Folder structure
 
@@ -61,6 +103,7 @@ audio-agent/
 │   │   ├── recorder.py            # WASAPI audio capture
 │   │   ├── transcriber.py         # Whisper wrapper with progress
 │   │   ├── audio_utils.py         # get_audio_duration()
+│   │   ├── diarizer.py            # HTTP client to WSL microservice
 │   │   └── downloader.py          # yt-dlp + httpx download helpers
 │   └── settings.py                # Config from env vars
 ├── infra/
@@ -69,6 +112,10 @@ audio-agent/
 │   ├── queue_sqlite.py            # JobQueue implementation
 │   ├── storage_local.py           # File path helpers
 │   └── benchmark.py               # RTF context manager
+├── wsl-diarizer/                  # microservice running INSIDE WSL2 Ubuntu
+│   ├── server.py                  # FastAPI: /health /diarize /unload (port 9020)
+│   ├── start.sh                   # uvicorn boot script
+│   └── smoke_test.py              # standalone PoC for the 3D-Speaker pipeline
 ├── scripts/
 │   └── migrate_json_to_sqlite.py  # One-time JSON → SQLite migration
 └── static/index.html              # Single-file frontend (no framework)

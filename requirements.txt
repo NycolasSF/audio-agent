@@ -12,4 +12,3 @@ httpx
 python-jose[cryptography]
 bcrypt
 email-validator
-pyannote.audio

@@ -99,7 +99,9 @@ class Worker(threading.Thread):
                     d_segs = diarize(job["file_path"])
                     result["segments"] = merge_speaker_labels(result["segments"], d_segs)
                 except Exception as e:
-                    print(f"[Worker] Diarização falhou (continuando sem): {e}")
+                    msg = f"Falha na identificação de falantes: {e}"
+                    result["error"] = msg
+                    print(f"[Worker] {msg}")
 
             if result["success"]:
                 self.repo.mark_done(job_id, result)

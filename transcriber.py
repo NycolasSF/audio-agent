@@ -50,7 +50,7 @@ def transcribe_with_progress(
 
         _wt.tqdm = _TqdmProxy()
         try:
-            opts = {"verbose": False}
+            opts = {"verbose": False, "word_timestamps": True}
             if language:
                 opts["language"] = language
             result = model.transcribe(file_path, **opts)
@@ -66,6 +66,15 @@ def transcribe_with_progress(
                     "start": round(s["start"], 3),
                     "end": round(s["end"], 3),
                     "text": s["text"].strip(),
+                    "words": [
+                        {
+                            "word": w["word"],
+                            "start": round(w["start"], 3),
+                            "end": round(w["end"], 3),
+                            "probability": round(float(w.get("probability", 1.0)), 4),
+                        }
+                        for w in s.get("words", [])
+                    ],
                 }
                 for s in result.get("segments", [])
             ],

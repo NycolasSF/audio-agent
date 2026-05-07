@@ -1,5 +1,6 @@
 import os
 import secrets
+from pathlib import Path
 
 from dotenv import load_dotenv
 
@@ -34,8 +35,13 @@ DEFAULT_QUOTA_MINUTES: float = float(os.getenv("DEFAULT_QUOTA_MINUTES", "60.0"))
 # ── Dev ─────────────────────────────────────────────────────────────────────
 DEV_AUTO_LOGIN: bool = os.getenv("DEV_AUTO_LOGIN", "false").lower() == "true"
 
-# ── Diarização ──────────────────────────────────────────────────────────────
-HUGGINGFACE_TOKEN: str = os.getenv("HUGGINGFACE_TOKEN", "")
+# ── Diarização — microsserviço 3D-Speaker no WSL2 ──────────────────────────
+# O pipeline ModelScope segfauta no Python nativo do Windows, então a
+# diarização roda dentro do WSL2 (Linux + GPU). Este app fala HTTP com ele.
+# Ver wsl-diarizer/server.py + start.sh para o servidor.
+DIARIZER_URL: str = os.getenv("DIARIZER_URL", "http://127.0.0.1:9020")
+# Timeout das chamadas /diarize em segundos (áudios longos podem precisar mais).
+DIARIZER_TIMEOUT: float = float(os.getenv("DIARIZER_TIMEOUT", "1800"))
 
 # ── Worker pool ─────────────────────────────────────────────────────────────
 # Máximo de utilização da GPU (%). Quando ultrapassado, o worker dorme entre
@@ -44,3 +50,7 @@ GPU_UTIL_LIMIT: int = int(os.getenv("GPU_UTIL_LIMIT", "70"))
 
 # Workers extras usando apenas CPU. 0 = só GPU (ou CPU se CUDA indisponível).
 CPU_WORKERS: int = int(os.getenv("CPU_WORKERS", "1"))
+
+# Segundos de ociosidade do pool antes de descarregar Whisper + diarizador
+# da VRAM/memória. 0 = nunca descarrega (modelos ficam quentes — comportamento legado).
+MODEL_IDLE_TIMEOUT_SECONDS: int = int(os.getenv("MODEL_IDLE_TIMEOUT_SECONDS", "60"))
