@@ -41,14 +41,19 @@ Aplicação web para **gravação, upload e transcrição automática de áudio*
 | Item | Versão mínima |
 |------|--------------|
 | Windows | 10 / 11 |
+| macOS | 12 Monterey (Apple Silicon ou Intel) |
 | Python | 3.10+ |
-| GPU NVIDIA + CUDA | Opcional (cai para CPU) |
+| GPU NVIDIA + CUDA | Opcional no Windows (cai para CPU) |
+| Apple Silicon MPS | Opcional no macOS (cai para CPU) |
 
-> **Nota:** A captura WASAPI loopback funciona apenas no Windows. O modo Abas requer Chrome/Edge 109+.
+> **Notas de plataforma:**
+> - **Captura do sistema (loopback)**: nativa no Windows via WASAPI. No macOS exige driver de áudio virtual (BlackHole, Loopback ou similar).
+> - **Diarização (3D-Speaker)**: roda em WSL2 no Windows e nativa no macOS (sem WSL).
+> - **Modo Abas**: requer Chrome/Edge 109+ (funciona em ambos os sistemas).
 
 ---
 
-## Instalação
+## Instalação (Windows)
 
 ```bash
 # 1. Clone o repositório
@@ -67,10 +72,98 @@ copy .env.example .env
 
 ---
 
+## Instalação (macOS)
+
+No macOS não é preciso usar WSL — a diarização (3D-Speaker) roda nativa. A única peça que muda é a captura de áudio do sistema, que exige um driver virtual (BlackHole).
+
+### 1. Pré-requisitos via Homebrew
+
+```bash
+# Instale o Homebrew se ainda não tiver: https://brew.sh
+brew install python@3.12 ffmpeg git
+
+# (Opcional) BlackHole 2ch para capturar o áudio do sistema (modo Loopback)
+brew install --cask blackhole-2ch
+```
+
+> O `pyaudiowpatch` (usado no Windows para WASAPI loopback) **não instala no macOS**. No Mac, a captura do sistema é feita roteando o áudio para o BlackHole e selecionando-o como dispositivo de entrada — ou usando o modo **Abas** do navegador, que funciona sem driver extra.
+
+### 2. Clone e venv
+
+```bash
+git clone https://github.com/NycolasSF/audio-agent.git
+cd audio-agent
+
+python3.12 -m venv .venv
+source .venv/bin/activate
+```
+
+### 3. PyTorch
+
+```bash
+# Apple Silicon (M1/M2/M3/M4) — usa MPS (GPU integrada da Apple)
+pip install torch torchaudio
+
+# Intel Mac — apenas CPU
+pip install torch torchaudio
+```
+
+### 4. Demais dependências
+
+```bash
+pip install -r requirements.txt
+```
+
+> Se algum pacote Windows-only (ex.: `pyaudiowpatch`) estiver listado em `requirements.txt` e falhar, instale o restante ignorando-o:
+> ```bash
+> grep -v pyaudiowpatch requirements.txt | pip install -r /dev/stdin
+> ```
+
+### 5. Diarização nativa (opcional)
+
+A diarização usa 3D-Speaker via ModelScope. No macOS roda nativa, sem microsserviço WSL:
+
+```bash
+pip install 'numpy<2' modelscope datasets funasr soundfile \
+  addict simplejson sortedcontainers pillow opencv-python-headless \
+  hdbscan umap-learn pyyaml kaldiio librosa scipy
+```
+
+Configure o `.env` para apontar o diarizer pra `localhost` (sem WSL):
+
+```bash
+cp .env.example .env
+# edite e ajuste:
+#   DIARIZER_AUTOSTART=false
+#   DIARIZER_URL=http://127.0.0.1:9020
+```
+
+Rode o microsserviço de diarização em outro terminal **somente quando precisar**:
+
+```bash
+cd wsl-diarizer
+uvicorn server:app --host 127.0.0.1 --port 9020
+```
+
+> Se você não vai usar diarização (`diarize=False` em todos os jobs), pode pular este passo inteiro.
+
+### 6. Capturar áudio do sistema com BlackHole (opcional)
+
+1. Abra **Configurações de MIDI/Áudio** (`Audio MIDI Setup`).
+2. Crie um **Multi-Output Device** com `BlackHole 2ch` + sua saída normal (alto-falante/fone). Isso permite ouvir e gravar ao mesmo tempo.
+3. Defina o Multi-Output Device como saída padrão do sistema.
+4. No AudioAgent, escolha `BlackHole 2ch` como dispositivo de entrada.
+
+---
+
 ## Como usar
 
 ```bash
 # Windows: execute start.bat   OU
+python main.py
+
+# macOS (com venv ativo):
+source .venv/bin/activate
 python main.py
 ```
 
