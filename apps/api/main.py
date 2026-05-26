@@ -5,7 +5,7 @@ from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse
 
-from apps.api import state
+from apps.api import diarizer_service, state
 from apps.api.auth.models import AdminUserItem, QuotaUpdateBody, UsageResponse, UserOut
 from apps.api.auth.routes import router as auth_router
 from apps.api.deps import get_admin_user, get_current_user
@@ -27,6 +27,7 @@ app.add_middleware(
 @app.on_event("startup")
 async def startup() -> None:
     init_db()
+    diarizer_service.start()
     state.pool.start()
     device_label = state.DEVICE.upper()
     if state.DEVICE == "cuda":
@@ -35,6 +36,11 @@ async def startup() -> None:
         except Exception:
             pass
     print(f"[Init] Device: {device_label}")
+
+
+@app.on_event("shutdown")
+async def shutdown() -> None:
+    diarizer_service.stop()
 
 
 app.include_router(auth_router)

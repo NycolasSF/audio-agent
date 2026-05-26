@@ -4,9 +4,14 @@ from typing import Callable, Dict, Optional
 
 from core.interfaces.queue import JobQueue
 from core.interfaces.repo import TranscriptionRepo
-from core.services.transcriber import transcribe_with_progress
+from core.services.transcriber import transcribe_with_progress, unload_models
 from infra.benchmark import BenchmarkContext
 from apps.api import state as _state
+
+
+class CancelledTranscriptionError(Exception):
+    """Raised by progress_cb when the job was cancelled by user via /cancel."""
+    pass
 
 
 class Worker(threading.Thread):
@@ -20,6 +25,7 @@ class Worker(threading.Thread):
         user_repo=None,
         device: str = "cpu",
         gpu_limit: int = 70,
+        cpu_limit: int = 100,
         name: str = "TranscriptionWorker",
         should_dequeue: Optional[Callable[[], bool]] = None,
     ):
@@ -30,6 +36,7 @@ class Worker(threading.Thread):
         self.user_repo = user_repo
         self.device = device
         self.gpu_limit = gpu_limit
+        self.cpu_limit = cpu_limit
         # Se fornecido, o worker só dequeua quando este callback retornar True.
         # Usado para workers CPU esperarem a GPU estar ocupada.
         self._should_dequeue = should_dequeue
@@ -67,6 +74,8 @@ class Worker(threading.Thread):
             self.repo.mark_processing(job_id)
 
             def progress_cb(pct: int) -> None:
+                if job_id in _state.cancelled_ids:
+                    raise CancelledTranscriptionError(job_id)
                 self.repo.update_progress(job_id, pct)
                 _state.progress_store[job_id] = pct
                 cb = self.progress_callbacks.get(job_id)
@@ -90,11 +99,17 @@ class Worker(threading.Thread):
                     progress_cb=progress_cb,
                     language=None if input_language == "auto" else input_language,
                     gpu_limit=self.gpu_limit,
+                    cpu_limit=self.cpu_limit,
                 )
 
             if result["success"] and job.get("diarize"):
                 try:
                     from core.services.diarizer import diarize, merge_speaker_labels
+                    # Libera VRAM do Whisper antes da diarização — em GPUs de 8GB
+                    # (RTX 3060 Ti), Whisper large + 3D-Speaker simultâneos
+                    # estouram (CUDA OOM). Custo: recarregar Whisper no próximo job.
+                    if self.device == "cuda":
+                        unload_models()
                     print(f"[Worker] Diarizando {job_id}…")
                     d_segs = diarize(job["file_path"])
                     result["segments"] = merge_speaker_labels(result["segments"], d_segs)
@@ -113,6 +128,22 @@ class Worker(threading.Thread):
             else:
                 self.repo.mark_error(job_id, result.get("error", "Erro desconhecido"))
 
+        except CancelledTranscriptionError:
+            print(f"[Worker] Job {job_id} cancelado pelo usuário.")
+            try:
+                from infra.db import get_connection
+                from datetime import datetime
+                conn = get_connection()
+                try:
+                    conn.execute(
+                        "UPDATE jobs SET status='cancelled', error='Cancelado pelo usuário', updated_at=? WHERE id=?",
+                        (datetime.now().isoformat(), job_id),
+                    )
+                    conn.commit()
+                finally:
+                    conn.close()
+            except Exception as e:
+                print(f"[Worker] Erro ao marcar {job_id} como cancelled: {e}")
         except Exception as e:
             print(f"[Worker] Erro ao processar {job_id}: {e}")
             try:
@@ -122,3 +153,4 @@ class Worker(threading.Thread):
         finally:
             self.current_job_id = None
             _state.progress_store.pop(job_id, None)
+            _state.cancelled_ids.discard(job_id)

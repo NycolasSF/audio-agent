@@ -23,5 +23,10 @@
   },
   "disabledMcpjsonServers": [
     "workspace-mcp"
+  ],
+  "enabledMcpjsonServers": [
+    "scrapling",
+    "local-deep-research",
+    "gpt-researcher"
   ]
 }

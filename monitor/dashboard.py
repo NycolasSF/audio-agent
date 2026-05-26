@@ -16,10 +16,10 @@ if TYPE_CHECKING:
 
 def _fmt_bytes(n: int) -> str:
     if n >= 1 << 30:
-        return f"{n / (1 << 30):.1f} GB"
+        return f"{n / (1 << 30):.1f}GB"
     if n >= 1 << 20:
-        return f"{n / (1 << 20):.0f} MB"
-    return f"{n >> 10} KB"
+        return f"{n / (1 << 20):.0f}MB"
+    return f"{n >> 10}KB"
 
 
 def _bar(pct: float, width: int = 18) -> str:
@@ -46,9 +46,9 @@ def _build(state, device_label: str, start_ts: float):
     try:
         import psutil
         cpu_pct = psutil.cpu_percent(interval=None)
-        proc = psutil.Process(os.getpid())
-        ram_used = proc.memory_info().rss
-        ram_total = psutil.virtual_memory().total
+        vm = psutil.virtual_memory()
+        ram_used = vm.used
+        ram_total = vm.total
     except Exception:
         cpu_pct = ram_used = ram_total = None
 
@@ -56,11 +56,38 @@ def _build(state, device_label: str, start_ts: float):
     try:
         import torch
         if torch.cuda.is_available():
-            gpu_util = torch.cuda.utilization(0)
+            try:
+                gpu_util = torch.cuda.utilization(0)
+            except Exception:
+                pass
             gpu_mem_used = torch.cuda.memory_allocated(0)
             gpu_mem_total = torch.cuda.get_device_properties(0).total_memory
     except Exception:
         pass
+
+    # nvidia-smi fallback — funciona mesmo sem pynvml e cobre uso total da GPU,
+    # não só o que o PyTorch alocou (durante segmentos curtos o Whisper libera
+    # tensores entre etapas, então memory_allocated subestima o VRAM em uso).
+    if gpu_util is None or gpu_mem_used in (None, 0):
+        try:
+            import subprocess
+            out = subprocess.check_output(
+                ["nvidia-smi",
+                 "--query-gpu=utilization.gpu,memory.used,memory.total",
+                 "--format=csv,noheader,nounits"],
+                timeout=2, stderr=subprocess.DEVNULL
+            ).decode().strip().splitlines()[0]
+            parts = [p.strip() for p in out.split(",")]
+            if gpu_util is None:
+                gpu_util = int(parts[0])
+            smi_used = int(parts[1]) * (1 << 20)   # MiB → bytes
+            smi_total = int(parts[2]) * (1 << 20)
+            if not gpu_mem_used:
+                gpu_mem_used = smi_used
+            if not gpu_mem_total:
+                gpu_mem_total = smi_total
+        except Exception:
+            pass
 
     # ── workers ───────────────────────────────────────────────────────────────
     workers = []
@@ -104,19 +131,31 @@ def _build(state, device_label: str, start_ts: float):
 
     # System panel
     sys_table = Table(box=None, show_header=False, padding=(0, 1))
-    sys_table.add_column(style="dim", width=6)
-    sys_table.add_column(style="white", width=20)
+    sys_table.add_column(style="dim", width=8, no_wrap=True)
+    sys_table.add_column(style="white", no_wrap=True)
 
     if cpu_pct is not None:
-        sys_table.add_row("CPU", f"[cyan]{_bar(cpu_pct, 14)}[/] {cpu_pct:4.0f}%")
+        sys_table.add_row("CPU", f"[cyan]{_bar(cpu_pct, 12)}[/] [bold]{cpu_pct:4.0f}%[/]")
+    else:
+        sys_table.add_row("CPU", "[dim]n/a[/]")
+
     if ram_used is not None:
         ram_pct = ram_used / ram_total * 100
-        sys_table.add_row("RAM", f"[cyan]{_bar(ram_pct, 14)}[/] {_fmt_bytes(ram_used)}/{_fmt_bytes(ram_total)}")
+        sys_table.add_row("RAM", f"[cyan]{_bar(ram_pct, 12)}[/] [bold]{_fmt_bytes(ram_used)}/{_fmt_bytes(ram_total)}[/]")
+    else:
+        sys_table.add_row("RAM", "[dim]n/a[/]")
+
     if gpu_util is not None:
-        sys_table.add_row("GPU", f"[cyan]{_bar(gpu_util, 14)}[/] {gpu_util:4d}%")
-    if gpu_mem_used is not None:
+        gpu_color = "red" if gpu_util > 85 else "cyan"
+        sys_table.add_row("GPU", f"[{gpu_color}]{_bar(gpu_util, 12)}[/] [bold]{gpu_util:4d}%[/]")
+    else:
+        sys_table.add_row("GPU", "[dim]n/a[/]")
+
+    if gpu_mem_used is not None and gpu_mem_total:
         gm_pct = gpu_mem_used / gpu_mem_total * 100
-        sys_table.add_row("VRAM", f"[cyan]{_bar(gm_pct, 14)}[/] {_fmt_bytes(gpu_mem_used)}/{_fmt_bytes(gpu_mem_total)}")
+        sys_table.add_row("VRAM", f"[cyan]{_bar(gm_pct, 12)}[/] [bold]{_fmt_bytes(gpu_mem_used)}/{_fmt_bytes(gpu_mem_total)}[/]")
+    else:
+        sys_table.add_row("VRAM", "[dim]n/a[/]")
 
     sys_table.add_row("", "")
     sys_table.add_row("[dim]WORKERS[/]", "")

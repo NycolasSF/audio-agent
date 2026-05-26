@@ -43,12 +43,32 @@ DIARIZER_URL: str = os.getenv("DIARIZER_URL", "http://127.0.0.1:9020")
 # Timeout das chamadas /diarize em segundos (áudios longos podem precisar mais).
 DIARIZER_TIMEOUT: float = float(os.getenv("DIARIZER_TIMEOUT", "1800"))
 
+# Auto-start do microsserviço quando o app sobe (Windows + WSL2).
+# Desligue se preferir subir manualmente o uvicorn dentro do WSL.
+DIARIZER_AUTOSTART: bool = os.getenv("DIARIZER_AUTOSTART", "true").lower() in (
+    "1", "true", "yes",
+)
+DIARIZER_WSL_DISTRO: str = os.getenv("DIARIZER_WSL_DISTRO", "Ubuntu")
+DIARIZER_WSL_USER: str = os.getenv("DIARIZER_WSL_USER", "root")
+DIARIZER_START_SCRIPT: str = os.getenv(
+    "DIARIZER_START_SCRIPT",
+    "/mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh",
+)
+# Segundos de espera pelo /health do microsserviço durante o autostart.
+DIARIZER_STARTUP_TIMEOUT: float = float(os.getenv("DIARIZER_STARTUP_TIMEOUT", "30"))
+
 # ── Worker pool ─────────────────────────────────────────────────────────────
 # Máximo de utilização da GPU (%). Quando ultrapassado, o worker dorme entre
 # segmentos para liberar ciclos para outras aplicações.
 GPU_UTIL_LIMIT: int = int(os.getenv("GPU_UTIL_LIMIT", "70"))
 
+# Máximo de utilização da CPU (%). Mesmo princípio do GPU_UTIL_LIMIT: quando a
+# CPU global ultrapassa o limite, workers CPU dormem entre segmentos. Cobre o
+# caso de lote grande com múltiplos CPU_WORKERS sem travar o resto do sistema.
+CPU_UTIL_LIMIT: int = int(os.getenv("CPU_UTIL_LIMIT", "50"))
+
 # Workers extras usando apenas CPU. 0 = só GPU (ou CPU se CUDA indisponível).
+# Com CPU_UTIL_LIMIT ativo, é seguro subir (ex.: 2-4) sem saturar a máquina.
 CPU_WORKERS: int = int(os.getenv("CPU_WORKERS", "1"))
 
 # Segundos de ociosidade do pool antes de descarregar Whisper + diarizador

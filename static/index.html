@@ -693,6 +693,18 @@
       .status-proc { display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--accent);flex-direction:column;align-items:flex-start; }
       .status-pct { font-size:.72rem;color:var(--accent);font-weight:600; }
       .status-err { display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--record); }
+      .status-cancelled { display:inline-flex;align-items:center;gap:5px;font-size:.75rem;color:var(--text-muted); }
+      .status-cancel-btn {
+        position:absolute;top:-2px;right:-4px;width:16px;height:16px;line-height:14px;
+        padding:0;border-radius:50%;border:1px solid var(--border);
+        background:var(--glass2);color:var(--text-muted);
+        font-size:.85rem;font-weight:700;cursor:pointer;
+        display:flex;align-items:center;justify-content:center;
+        transition:color .15s, border-color .15s, background .15s;
+      }
+      .status-cancel-btn:hover:not(:disabled) { color:var(--record);border-color:var(--record);background:rgba(255,77,77,.08); }
+      .status-cancel-btn:disabled { opacity:.5;cursor:wait; }
+      .status-proc { position:relative; }
       .spin { animation:spin .8s linear infinite; }
       @keyframes spin { to { transform:rotate(360deg); } }
       .prog-inline { margin-top:2px;height:3px;background:var(--glass2);border-radius:2px;overflow:hidden;width:100%; }
@@ -1261,6 +1273,27 @@
         flex-shrink: 0;
       }
       .speaker-badge:hover { background: var(--glow); }
+
+      /* Faixa de palestrantes no header do popup — edição rápida */
+      .detail-speakers { display: flex; gap: 6px; flex-wrap: wrap; padding: 6px; margin-top: 4px; }
+      .detail-speakers:empty { display: none; }
+      .detail-speakers .speaker-edit {
+        display: inline-flex; align-items: center; gap: 4px;
+        font-size: 0.72rem; font-weight: 600;
+        padding: 3px 9px 3px 7px; border-radius: 20px;
+        background: var(--accent-dim); color: var(--accent);
+        cursor: pointer; user-select: none; border: 1px solid transparent;
+      }
+      .detail-speakers .speaker-edit:hover { border-color: var(--accent); }
+      .detail-speakers .speaker-edit svg { opacity: 0.65; }
+
+      /* Parágrafo fluido na transcrição (estilo editorial) */
+      .transcript-para { display: block; margin: 0 0 14px 0; line-height: 1.85; }
+      .transcript-para .ts-mark {
+        display: inline; font-size: 0.78rem; opacity: 0.55;
+        margin: 0 4px; cursor: default; user-select: none;
+      }
+      .transcript-para .speaker-badge { margin-right: 8px; vertical-align: middle; }
       .diarize-toggle {
         display: flex;
         align-items: center;
@@ -1696,6 +1729,7 @@
             <input type="text" class="detail-title" id="detail-title" placeholder="Título da transcrição"
               onblur="saveDetailTitle()" onkeydown="if(event.key==='Enter')this.blur()"/>
             <div class="detail-meta" id="detail-meta"></div>
+            <div class="detail-speakers" id="detail-speakers"></div>
           </div>
         </div>
         <div class="detail-body">
@@ -2485,11 +2519,10 @@
         btn.disabled = true;
         btn.textContent = "Importando…";
 
+        const diarizeLinks = document.getElementById("diarize-link")?.checked ? "true" : "false";
         closeLinkModal();
         btn.textContent = "Importar";
         btn.disabled = false;
-
-        const diarizeLinks = document.getElementById("diarize-link")?.checked ? "true" : "false";
         for (const url of urls) {
           const fd = new FormData();
           fd.append("url", url);
@@ -2549,8 +2582,8 @@
         btn.disabled = true;
         const filesToUpload = [...selectedFiles];
         btn.textContent = filesToUpload.length > 1 ? `Enviando 0/${filesToUpload.length}…` : "Enviando…";
-        closeUploadModal();
         const diarize = document.getElementById("diarize-upload")?.checked ? "true" : "false";
+        closeUploadModal();
         let ok = 0;
         for (let i = 0; i < filesToUpload.length; i++) {
           const f = filesToUpload[i];
@@ -2602,6 +2635,10 @@
               // Also update store so openDetail can open (marks as having an error)
               const d = store.get(id);
               if (d) { d.text = ""; d.error = "Servidor reiniciado. Re-transcreva."; }
+            } else if (j.status === "cancelled") {
+              clearInterval(iv);
+              pollingTimers.delete(id);
+              cancelledRow(id);
             }
           } catch (e) {}
         }, 1500);
@@ -2660,6 +2697,8 @@
       <div class="status-proc">
         <span class="status-pct" id="pct-${msg.id}">0%</span>
         <div class="prog-inline"><div class="prog-inline-bar" id="prog-${msg.id}"></div></div>
+        <button class="status-cancel-btn" title="Cancelar transcrição"
+                onclick="event.stopPropagation();cancelJob('${msg.id}',this)">×</button>
       </div>
     </td>
     <td class="td-menu">
@@ -2741,6 +2780,40 @@
         completeRow({ id, error: msg });
       }
 
+      function cancelledRow(id) {
+        const sc = document.getElementById("status-" + id);
+        if (sc) {
+          sc.innerHTML = `<div class="status-cancelled" title="Cancelado pelo usuário">⊘ Cancelado</div>`;
+        }
+        const d = store.get(id);
+        if (d) { d.text = ""; d.error = "Cancelado pelo usuário"; d.status = "cancelled"; }
+      }
+
+      async function cancelJob(id, btn) {
+        if (btn) { btn.disabled = true; btn.textContent = "…"; }
+        try {
+          const r = await apiFetch(`/transcriptions/${id}/cancel`, { method: "POST" });
+          if (!r.ok) {
+            const j = await r.json().catch(() => ({}));
+            toast(j.detail || "Não foi possível cancelar", true);
+            if (btn) { btn.disabled = false; btn.textContent = "×"; }
+            return;
+          }
+          const j = await r.json();
+          if (j.where === "queue") {
+            cancelledRow(id);
+            const t = pollingTimers.get(id);
+            if (t) { clearInterval(t); pollingTimers.delete(id); }
+          } else {
+            // worker — aguarda próxima callback de progresso abortar
+            toast("Cancelando… aguarde o término do segmento atual.");
+          }
+        } catch (e) {
+          toast("Erro ao cancelar: " + e.message, true);
+          if (btn) { btn.disabled = false; btn.textContent = "×"; }
+        }
+      }
+
       // === HISTORY ===
       async function loadHistory() {
         try {
@@ -2782,6 +2855,13 @@
         // Update all badges for this speaker in the current view
         document.querySelectorAll(`.speaker-badge[data-job="${jobId}"][data-spk="${label}"]`)
           .forEach(b => { b.textContent = trimmed; });
+        // Atualiza também os botões da faixa de edição (preserva o ícone do lápis)
+        document.querySelectorAll(`.speaker-edit[data-job="${jobId}"][data-spk="${label}"]`)
+          .forEach(b => {
+            const svg = b.querySelector('svg');
+            b.textContent = trimmed + ' ';
+            if (svg) b.appendChild(svg);
+          });
         // Update local store
         const d = store.get(jobId);
         if (d) d.speaker_names = { ...(d.speaker_names || {}), [label]: trimmed };
@@ -2803,18 +2883,53 @@
         document.getElementById('detail-meta').textContent =
           [d.timestamp, d.duration ? fmtDur(d.duration) : null, d.language ? d.language.toUpperCase() : null, d.model]
             .filter(Boolean).join(' · ');
-        // Render text with timestamps (and optional speaker badges)
+        // Render text grouped by speaker turns (consecutive segments of same speaker merged)
         const area = document.getElementById('detail-text');
+        const speakersBar = document.getElementById('detail-speakers');
+        speakersBar.innerHTML = '';
         if (d.segments && d.segments.length) {
-          area.innerHTML = d.segments.map(s => {
-            const spkHtml = s.speaker
-              ? `<span class="speaker-badge" data-job="${id}" data-spk="${escHtml(s.speaker)}"
+          // Texto fluido em parágrafos — timestamp inline, quebra de parágrafo
+          // em silêncios longos ou mudança de palestrante. Badge só na 1ª linha
+          // de cada bloco do mesmo speaker.
+          const PARAGRAPH_GAP_S = 1.5;   // silêncio que dispara novo parágrafo
+          const paragraphs = [];
+          let cur = null;
+          let prevEnd = 0;
+          for (const s of d.segments) {
+            const spk = s.speaker || null;
+            const gap = s.start - prevEnd;
+            const speakerChanged = cur && cur.speaker !== spk;
+            const longSilence = cur && gap >= PARAGRAPH_GAP_S;
+            if (!cur || speakerChanged || longSilence) {
+              cur = { speaker: spk, segs: [] };
+              paragraphs.push(cur);
+            }
+            cur.segs.push(s);
+            prevEnd = s.end;
+          }
+          area.innerHTML = paragraphs.map(p => {
+            const spkHtml = p.speaker
+              ? `<span class="speaker-badge" data-job="${id}" data-spk="${escHtml(p.speaker)}"
                    title="Duplo-clique para renomear"
-                   ondblclick="renameSpeaker('${id}','${escHtml(s.speaker)}',this)"
-                 >${escHtml(resolveSpeaker(id, s.speaker))}</span>`
+                   ondblclick="renameSpeaker('${id}','${escHtml(p.speaker)}',this)"
+                 >${escHtml(resolveSpeaker(id, p.speaker))}</span>`
               : '';
-            return `<span class="ts-mark" title="${toVtt(s.start)}">(${toShortTime(s.start)})</span>${spkHtml}${escHtml(s.text.trim())} `;
+            const body = p.segs.map(s =>
+              `<span class="ts-mark" title="${toVtt(s.start)}">(${toShortTime(s.start)})</span>${escHtml(s.text.trim())}`
+            ).join('<br>');
+            return `<p class="transcript-para">${spkHtml}${body}</p>`;
           }).join('');
+          // Faixa de palestrantes no header (botões clicáveis para renomear)
+          const distinct = [...new Set(d.segments.map(s => s.speaker).filter(Boolean))];
+          if (distinct.length) {
+            speakersBar.innerHTML = distinct.map(spk => `
+              <span class="speaker-edit" data-job="${id}" data-spk="${escHtml(spk)}"
+                    title="Renomear palestrante"
+                    onclick="renameSpeaker('${id}','${escHtml(spk)}',this)">
+                ${escHtml(resolveSpeaker(id, spk))}
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+              </span>`).join('');
+          }
         } else {
           area.textContent = d.text || '';
         }
@@ -2858,7 +2973,7 @@
           closeDetail();
           // Reset row status back to processing with 0%
           const sc = document.getElementById('status-' + tid);
-          if (sc) sc.innerHTML = `<div class="status-proc"><span class="status-pct" id="pct-${tid}">0%</span><div class="prog-inline"><div class="prog-inline-bar" id="prog-${tid}"></div></div></div>`;
+          if (sc) sc.innerHTML = `<div class="status-proc"><span class="status-pct" id="pct-${tid}">0%</span><div class="prog-inline"><div class="prog-inline-bar" id="prog-${tid}"></div></div><button class="status-cancel-btn" title="Cancelar transcrição" onclick="event.stopPropagation();cancelJob('${tid}',this)">×</button></div>`;
           // Update model badge
           const mb = document.querySelector(`#row-${tid} .model-badge`);
           if (mb) mb.textContent = model;

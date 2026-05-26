@@ -147,17 +147,17 @@ class SQLiteRepo(TranscriptionRepo):
         finally:
             conn.close()
 
-    def list_jobs(self, limit: int = 200, user_id: Optional[str] = None) -> List[dict]:
+    def list_jobs(self, limit: int = 1000, user_id: Optional[str] = None) -> List[dict]:
         conn = get_connection()
         try:
             if user_id:
                 rows = conn.execute(
-                    "SELECT * FROM jobs WHERE user_id=? ORDER BY created_at ASC LIMIT ?",
+                    "SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
                     (user_id, limit),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT * FROM jobs ORDER BY created_at ASC LIMIT ?", (limit,)
+                    "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
                 ).fetchall()
             return [_row_to_dict(r) for r in rows]
         finally:

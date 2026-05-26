@@ -9,6 +9,7 @@ Veja ``wsl-diarizer/server.py`` para o servidor.
 """
 from __future__ import annotations
 
+import os
 import re
 
 import httpx
@@ -22,14 +23,23 @@ _DRIVE_RE = re.compile(r"^([A-Za-z]):[\\/](.*)$")
 def _to_wsl_path(path: str) -> str:
     """Converte ``F:\\foo\\bar`` em ``/mnt/f/foo/bar``.
 
-    Caminhos ja em formato POSIX sao retornados como estao.
+    Caminhos relativos sao resolvidos a partir do CWD do app antes da conversao
+    (o worker passa ``recordings\\file.m4a`` e o WSL nao enxerga esse cwd).
+    Caminhos ja em formato POSIX (``/mnt/...``) sao retornados como estao.
     """
     s = str(path).replace("\\", "/")
     m = _DRIVE_RE.match(s)
     if m:
         drive, rest = m.group(1).lower(), m.group(2)
         return f"/mnt/{drive}/{rest}"
-    return s
+    if s.startswith("/"):
+        return s
+    abs_path = os.path.abspath(path).replace("\\", "/")
+    m2 = _DRIVE_RE.match(abs_path)
+    if m2:
+        drive, rest = m2.group(1).lower(), m2.group(2)
+        return f"/mnt/{drive}/{rest}"
+    return abs_path
 
 
 def _client() -> httpx.Client:

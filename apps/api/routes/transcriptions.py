@@ -72,6 +72,9 @@ async def get_transcription_status(tid: str, current_user: dict = Depends(get_cu
         # Backward-compat: frontend checks "done" + error field
         return {"status": "done", **job}
 
+    if s == "cancelled":
+        return JSONResponse({"status": "cancelled", "error": job.get("error")})
+
     # pending or processing
     if state.pool.is_processing(tid):
         return JSONResponse({"status": "processing", "percent": job["percent"]})
@@ -81,6 +84,39 @@ async def get_transcription_status(tid: str, current_user: dict = Depends(get_cu
 
     # status == "processing" but worker isn't on it → server restarted mid-job
     return JSONResponse({"status": "stuck", "percent": 0})
+
+
+@router.post("/transcriptions/{tid}/cancel")
+async def cancel_transcription(tid: str, current_user: dict = Depends(get_current_user)):
+    job = state.repo.get_job_owned_by(tid, current_user["id"])
+    if job is None:
+        raise HTTPException(status_code=404, detail="Transcrição não encontrada")
+
+    status = job.get("status")
+    if status in ("done", "error", "cancelled"):
+        raise HTTPException(status_code=400, detail=f"Transcrição já finalizada ({status})")
+
+    from infra.db import get_connection
+    now = datetime.now().isoformat()
+
+    if status == "pending":
+        # Remove da fila (worker ainda não pegou) e marca cancelled
+        conn = get_connection()
+        try:
+            conn.execute("DELETE FROM job_queue WHERE job_id=?", (tid,))
+            conn.execute(
+                "UPDATE jobs SET status='cancelled', error='Cancelado pelo usuário', updated_at=? WHERE id=?",
+                (now, tid),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+        return {"id": tid, "status": "cancelled", "where": "queue"}
+
+    # processing — sinaliza worker via state.cancelled_ids; ele aborta na próxima
+    # callback de progresso (Whisper reporta após cada segmento)
+    state.cancelled_ids.add(tid)
+    return {"id": tid, "status": "cancelling", "where": "worker"}
 
 
 @router.post("/transcriptions/{tid}/retranscribe")

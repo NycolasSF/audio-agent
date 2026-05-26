@@ -49,19 +49,21 @@ wsl -d Ubuntu -u root -- bash -c "
 "
 ```
 
-**Daily usage** — start the diarizer service before launching the Windows app (any terminal):
-
-```powershell
-wsl -d Ubuntu -u root -- /mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh
-```
-
-Then in another terminal:
+**Daily usage** — the app spawns the microservice automatically on startup (`apps/api/diarizer_service.py`, hooked into the FastAPI lifespan). Just run:
 
 ```powershell
 python main.py
 ```
 
-If diarization is disabled for a job (`diarize=False`), the microservice doesn't need to be running.
+The startup logs will show `[Diarizer] Microsservico online em http://127.0.0.1:9020.` once `/health` answers. On shutdown the app sends `pkill -f 'uvicorn server:app'` inside WSL and terminates the `wsl.exe` subprocess.
+
+To opt out (run the microservice manually in another terminal), set `DIARIZER_AUTOSTART=false` in `.env`. To run it manually:
+
+```powershell
+wsl -d Ubuntu -u root -- /mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh
+```
+
+If diarization is disabled for every job (`diarize=False`), the microservice doesn't actually need to be running — autostart is best-effort and never blocks the app boot.
 
 **Models** are pre-downloaded under `models/modelscope/` (~110 MB). The microservice uses `/mnt/f/claude-projetos/audio-agent/models/modelscope/` directly — do not delete this folder.
 

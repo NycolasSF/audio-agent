@@ -78,6 +78,7 @@ class WorkerPool:
         progress_callbacks: Dict[str, Callable],
         user_repo=None,
         gpu_util_limit: int = 70,
+        cpu_util_limit: int = 100,
         cpu_workers: int = 1,
         model_idle_seconds: int = 0,
     ):
@@ -114,6 +115,7 @@ class WorkerPool:
                     user_repo=user_repo,
                     device="cpu",
                     gpu_limit=100,
+                    cpu_limit=cpu_util_limit,
                     name=f"Worker-CPU-{i + 1}",
                     should_dequeue=_gpu_busy,
                 )
@@ -132,6 +134,7 @@ class WorkerPool:
                     progress_callbacks=progress_callbacks,
                     user_repo=user_repo,
                     device="cpu",
+                    cpu_limit=cpu_util_limit,
                     name="Worker-CPU-0",
                 )
             )
