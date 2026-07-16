@@ -13,7 +13,7 @@ from apps.api.routes import transcriptions, upload, local
 from apps.api.ws.handler import websocket_endpoint
 from infra.db import init_db
 
-app = FastAPI(title="AudioAgent")
+app = FastAPI(title="Transcritor")
 
 app.add_middleware(
     CORSMiddleware,

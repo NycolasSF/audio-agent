@@ -1,5 +1,5 @@
 """
-Viewer interativo do banco de dados do AudioAgent.
+Viewer interativo do banco de dados do Transcritor.
 
 Uso:
     python scripts/view_db.py           # atualiza a cada 3s
@@ -208,7 +208,7 @@ def render(console) -> None:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="AudioAgent DB Viewer")
+    parser = argparse.ArgumentParser(description="Transcritor DB Viewer")
     parser.add_argument("--once", action="store_true", help="Exibir uma vez e sair")
     args = parser.parse_args()
 

@@ -2,7 +2,7 @@
 chcp 65001 >nul
 echo.
 echo  ╔══════════════════════════════════════╗
-echo  ║     AudioAgent — Instalação          ║
+echo  ║     Transcritor — Instalação          ║
 echo  ╚══════════════════════════════════════╝
 echo.
 

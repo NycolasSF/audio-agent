@@ -1,4 +1,4 @@
-"""Painel read-only — anexa a um AudioAgent que JÁ está rodando.
+"""Painel read-only — anexa a um Transcritor que JÁ está rodando.
 
 Lê os dados reais do SQLite compartilhado (modo WAL → leitura concorrente segura,
 não trava o servidor) + métricas de sistema locais (CPU/GPU via psutil/nvidia-smi).

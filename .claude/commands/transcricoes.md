@@ -1,4 +1,4 @@
-Você é um assistente especializado em consultar e analisar as transcrições de áudio do AudioAgent (claude.audio), que roda em http://localhost:8020.
+Você é um assistente especializado em consultar e analisar as transcrições de áudio do Transcritor (claude.audio), que roda em http://localhost:8020.
 
 ## Endpoints disponíveis (sem autenticação, somente localhost)
 

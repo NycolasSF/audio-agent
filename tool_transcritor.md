@@ -1,4 +1,4 @@
-# 🎙️ audio-agent — tool de transcrição do hub (guia de uso)
+# 🎙️ transcritor — tool de transcrição do hub (guia de uso)
 
 Servidor local de transcrição de fala → texto (Whisper na GPU, com timestamps por palavra). É a **única via de transcrição** do `claude-projetos`: qualquer script que precise transformar áudio/vídeo em texto chama ESTE servidor, nunca um Whisper próprio.
 
@@ -18,7 +18,7 @@ Antes de aprovar/escrever um script de transcrição, confira: `grep -rn "load_m
 
 ## Ligar o servidor
 
-- Rodar `F:\claude-projetos\_infra\audio-agent\start.bat` (ou `python main.py` na pasta). Sobe em `http://localhost:8020`.
+- Rodar `F:\claude-projetos\_infra\transcritor\start.bat` (ou `python main.py` na pasta). Sobe em `http://localhost:8020`.
 - Se já estiver no ar, o `start.bat` apenas abre o painel de acompanhamento (não sobe um segundo).
 - O cliente (abaixo) já espera o servidor subir sozinho (`wait_server`), então em geral você nem precisa ligar na mão — mas se a GPU estiver ocupada por outra coisa, ligue antes.
 
@@ -30,8 +30,8 @@ Um módulo stdlib puro (urllib, sem dependências) que fala com a API. Importe p
 
 ```python
 import sys
-sys.path.insert(0, r"F:\claude-projetos\_infra\audio-agent\clients")
-from audio_agent_client import transcribe_file, transcribe_media
+sys.path.insert(0, r"F:\claude-projetos\_infra\transcritor\clients")
+from transcritor_client import transcribe_file, transcribe_media
 ```
 
 Duas funções de entrada:
@@ -98,7 +98,7 @@ job = transcribe_media(path, model="large-v3", progress_cb=lambda p: print(f"{p}
 
 **Lote (reaproveitando o token e o servidor):**
 ```python
-from audio_agent_client import wait_server
+from transcritor_client import wait_server
 token = wait_server()                      # espera subir e loga uma vez
 for arquivo in lista:
     job = transcribe_media(arquivo, model="large-v3", language="pt", token=token)
@@ -123,7 +123,7 @@ Se um dia faltar VRAM (ex.: rodar diarização junto do `large-v3`), suba o serv
 
 ## Troubleshooting de uso
 
-- **`RuntimeError: audio-agent fora do ar`** → o servidor não subiu; rode o `start.bat`.
+- **`RuntimeError: transcritor fora do ar`** → o servidor não subiu; rode o `start.bat`.
 - **Travou em `stuck`** → o cliente já tolera `stuck` transitório (race ao iniciar o job); só falha se persistir >60 s, o que indica que o servidor caiu de verdade — religue.
 - **`CUDA out of memory`** → o servidor agora **se auto-recupera** (libera a VRAM no erro) e mantém só 1 modelo na GPU; não precisa reiniciar na mão. Se persistir, é sinal de outro processo segurando a GPU — feche-o (`nvidia-smi` mostra quem).
 
@@ -131,6 +131,6 @@ Se um dia faltar VRAM (ex.: rodar diarização junto do `large-v3`), suba o serv
 
 ## Referências
 
-- Cliente: `clients/audio_agent_client.py`
+- Cliente: `clients/transcritor_client.py`
 - Exemplo real de pipeline em lote (word-level, retry por take): `CLIENTES/marcio-medeiros-educacao/LANCAMENTOS/jul26-imersao-contabilidade/1-CAPTACAO/criativos/Videos/Para edicao/leva 1/_PIPELINE/_scripts/transcrever_audio_agent.py`
 - Config/ajuste do servidor: `CLAUDE.md` (esta pasta)

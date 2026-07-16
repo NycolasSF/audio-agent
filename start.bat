@@ -6,7 +6,7 @@ REM Servidor ja de pe na porta 8020? Entao anexa o painel (modo leitura), sem su
 netstat -ano | findstr "LISTENING" | findstr ":8020" >nul 2>&1
 if %errorlevel%==0 (
   echo.
-  echo  AudioAgent ja esta rodando. Abrindo o painel ^(modo leitura, Ctrl+C sai^)...
+  echo  Transcritor ja esta rodando. Abrindo o painel ^(modo leitura, Ctrl+C sai^)...
   echo.
   python -m monitor.viewer
   pause
@@ -14,7 +14,7 @@ if %errorlevel%==0 (
 )
 
 echo.
-echo  AudioAgent iniciando...
+echo  Transcritor iniciando...
 echo  Acesse: http://localhost:8020
 echo.
 python main.py

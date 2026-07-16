@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
-"""Cliente CANÔNICO do audio-agent (localhost:8020) — stdlib pura (urllib).
+"""Cliente CANÔNICO do transcritor (localhost:8020) — stdlib pura (urllib).
 
 POLÍTICA DO HUB: TODA transcrição de áudio/vídeo no claude-projetos passa por
-ESTE cliente -> audio-agent. É PROIBIDO carregar Whisper local
+ESTE cliente -> transcritor. É PROIBIDO carregar Whisper local
 (`whisper.load_model`, `faster_whisper.WhisperModel`) em qualquer script: a GPU
 é única (8 GB) e dois modelos competindo causam CUDA out of memory. O servidor
 serializa os jobs numa fila e é o ÚNICO dono da GPU.
@@ -10,8 +10,8 @@ serializa os jobs numa fila e é o ÚNICO dono da GPU.
 Uso típico (de qualquer pasta do hub):
 
     import sys
-    sys.path.insert(0, r"F:\\claude-projetos\\_infra\\audio-agent\\clients")
-    from audio_agent_client import transcribe_file, transcribe_media
+    sys.path.insert(0, r"F:\\claude-projetos\\_infra\\transcritor\\clients")
+    from transcritor_client import transcribe_file, transcribe_media
 
     job = transcribe_file(r"C:\\audio.wav", model="large-v3", language="pt")
     print(job["text"])
@@ -33,7 +33,7 @@ import time
 import uuid
 import urllib.request
 
-API = os.getenv("AUDIO_AGENT_URL", "http://localhost:8020")
+API = os.getenv("TRANSCRITOR_URL", "http://localhost:8020")
 
 # Extensões que o /upload aceita direto (espelha core/settings ALLOWED_EXTENSIONS).
 _DIRECT_EXTS = {".mp3", ".mp4", ".wav", ".m4a", ".ogg", ".webm", ".flac"}
@@ -46,14 +46,14 @@ def login(api: str = API) -> str:
 
 
 def wait_server(timeout: int = 180, api: str = API) -> str:
-    """Aguarda o audio-agent responder e devolve um token. Levanta se não subir."""
+    """Aguarda o transcritor responder e devolve um token. Levanta se não subir."""
     t0 = time.time()
     while time.time() - t0 < timeout:
         try:
             return login(api)
         except Exception:
             time.sleep(4)
-    raise RuntimeError(f"audio-agent fora do ar em {api} (rode start.bat / python main.py)")
+    raise RuntimeError(f"transcritor fora do ar em {api} (rode start.bat / python main.py)")
 
 
 def _upload(token: str, path: str, model: str, language: str, diarize: bool, api: str) -> str:

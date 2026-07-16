@@ -7,7 +7,7 @@ import os
 import sys
 import time
 
-CACHE = "/mnt/f/claude-projetos/audio-agent/models/modelscope"
+CACHE = "/mnt/f/claude-projetos/_infra/transcritor/models/modelscope"
 MODEL = f"{CACHE}/iic/speech_campplus_speaker-diarization_common"
 WAV = f"{MODEL}/examples/2speakers_example.wav"
 

@@ -9,8 +9,8 @@ CLAUDE.md) — o código antigo foi removido e este arquivo apenas re-exporta a
 engine atual.
 
 Nada deve importar este módulo diretamente. Use `core.services.transcriber`
-(dentro do servidor) ou, de qualquer outro script, o cliente HTTP do audio-agent:
-`_infra/audio-agent/clients/audio_agent_client.py`.
+(dentro do servidor) ou, de qualquer outro script, o cliente HTTP do transcritor:
+`_infra/transcritor/clients/transcritor_client.py`.
 """
 from core.services.transcriber import (  # noqa: F401
     get_device,

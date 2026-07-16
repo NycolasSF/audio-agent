@@ -2,7 +2,7 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-> **Como USAR a tool (do mundo, em scripts):** este CLAUDE.md cobre só configuração e ajuste do servidor. Para o guia de uso (cliente, exemplos, modelos), veja `tool_audio_agent.md` nesta mesma pasta.
+> **Como USAR a tool (do mundo, em scripts):** este CLAUDE.md cobre só configuração e ajuste do servidor. Para o guia de uso (cliente, exemplos, modelos), veja `tool_transcritor.md` nesta mesma pasta.
 
 ## Running the app
 
@@ -62,12 +62,12 @@ The startup logs will show `[Diarizer] Microsservico online em http://127.0.0.1:
 To opt out (run the microservice manually in another terminal), set `DIARIZER_AUTOSTART=false` in `.env`. To run it manually:
 
 ```powershell
-wsl -d Ubuntu -u root -- /mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh
+wsl -d Ubuntu -u root -- /mnt/f/claude-projetos/_infra/transcritor/wsl-diarizer/start.sh
 ```
 
 If diarization is disabled for every job (`diarize=False`), the microservice doesn't actually need to be running — autostart is best-effort and never blocks the app boot.
 
-**Models** are pre-downloaded under `models/modelscope/` (~110 MB). The microservice uses `/mnt/f/claude-projetos/audio-agent/models/modelscope/` directly — do not delete this folder.
+**Models** are pre-downloaded under `models/modelscope/` (~110 MB). The microservice uses `/mnt/f/claude-projetos/_infra/transcritor/models/modelscope/` directly — do not delete this folder.
 
 ## Transcription engine (faster-whisper)
 
@@ -111,7 +111,7 @@ The Whisper model can be changed at runtime via the UI without restarting the se
 ### Folder structure
 
 ```
-audio-agent/
+transcritor/
 ├── apps/
 │   ├── api/
 │   │   ├── main.py              # FastAPI app assembly

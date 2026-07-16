@@ -1,6 +1,6 @@
 import sqlite3, json
 
-c = sqlite3.connect(r"F:\claude-projetos\audio-agent\transcriptions\data.db")
+c = sqlite3.connect(r"F:\claude-projetos\_infra\transcritor\transcriptions\data.db")
 cur = c.cursor()
 cur.execute("select text, segments from jobs where id='7562d255'")
 text, segs_raw = cur.fetchone()
@@ -26,7 +26,7 @@ if buffer:
     lines.append(f"[{last_sp}] " + " ".join(buffer))
 
 out = "\n\n".join(lines)
-with open(r"F:\claude-projetos\audio-agent\_retest_diarized.txt", "w", encoding="utf-8") as f:
+with open(r"F:\claude-projetos\_infra\transcritor\_retest_diarized.txt", "w", encoding="utf-8") as f:
     f.write(out)
 print(f"\nsaved {len(out)} chars to _retest_diarized.txt")
 print(f"\n--- primeiros 1500 chars ---\n{out[:1500]}")

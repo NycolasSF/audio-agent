@@ -25,7 +25,7 @@ from pathlib import Path
 # Configurar ModelScope offline-first ANTES de qualquer import modelscope
 CACHE_DIR = os.environ.get(
     "MODELSCOPE_CACHE",
-    "/mnt/f/claude-projetos/audio-agent/models/modelscope",
+    "/mnt/f/claude-projetos/_infra/transcritor/models/modelscope",
 )
 MODEL_PATH = os.environ.get(
     "DIARIZER_MODEL_PATH",
@@ -84,7 +84,7 @@ def drop_pipe() -> bool:
     return had
 
 
-app = FastAPI(title="audio-agent diarizer (WSL)")
+app = FastAPI(title="transcritor diarizer (WSL)")
 
 
 class DiarizeReq(BaseModel):
@@ -107,7 +107,7 @@ def health():
 # Para qualquer outro container (m4a/aac, mp4, webm, opus, etc) pré-convertemos
 # pra WAV 16kHz mono via ffmpeg antes de chamar o pipeline.
 _NATIVE_EXTS = {".wav", ".flac", ".ogg"}
-_CACHE_DIR = Path(tempfile.gettempdir()) / "audio-agent-diarizer-cache"
+_CACHE_DIR = Path(tempfile.gettempdir()) / "transcritor-diarizer-cache"
 _CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 

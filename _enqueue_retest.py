@@ -7,7 +7,7 @@ USER_ID = "5c19cf83a3a44748b4c0967bbdf28eb6"
 
 assert os.path.exists(SRC_AUDIO), "audio nao encontrado"
 
-c = sqlite3.connect(r"F:\claude-projetos\audio-agent\transcriptions\data.db")
+c = sqlite3.connect(r"F:\claude-projetos\_infra\transcritor\transcriptions\data.db")
 cur = c.cursor()
 
 cur.execute(

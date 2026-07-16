@@ -1,4 +1,4 @@
-# AudioAgent
+# Transcritor
 
 Aplicação web para **gravação, upload e transcrição automática de áudio** com [OpenAI Whisper](https://github.com/openai/whisper), rodando 100% local — sem nenhuma API de terceiros.
 
@@ -152,7 +152,7 @@ uvicorn server:app --host 127.0.0.1 --port 9020
 1. Abra **Configurações de MIDI/Áudio** (`Audio MIDI Setup`).
 2. Crie um **Multi-Output Device** com `BlackHole 2ch` + sua saída normal (alto-falante/fone). Isso permite ouvir e gravar ao mesmo tempo.
 3. Defina o Multi-Output Device como saída padrão do sistema.
-4. No AudioAgent, escolha `BlackHole 2ch` como dispositivo de entrada.
+4. No Transcritor, escolha `BlackHole 2ch` como dispositivo de entrada.
 
 ---
 
@@ -251,7 +251,7 @@ Acesse **http://localhost:8020** no navegador.
 ## Estrutura do projeto
 
 ```
-audio-agent/
+transcritor/
 ├── main.py           # Servidor FastAPI (WebSocket + endpoints REST)
 ├── recorder.py       # Captura de áudio via WASAPI loopback
 ├── transcriber.py    # Transcrição com Whisper + hook de progresso via tqdm

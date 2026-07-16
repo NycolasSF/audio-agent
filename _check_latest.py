@@ -1,6 +1,6 @@
 import sqlite3
 
-c = sqlite3.connect(r"F:\claude-projetos\audio-agent\transcriptions\data.db")
+c = sqlite3.connect(r"F:\claude-projetos\_infra\transcritor\transcriptions\data.db")
 cur = c.cursor()
 cur.execute("""
     select id, status, diarize, model, duration, length(coalesce(text,'')), error, created_at, updated_at

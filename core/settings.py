@@ -52,7 +52,7 @@ DIARIZER_WSL_DISTRO: str = os.getenv("DIARIZER_WSL_DISTRO", "Ubuntu")
 DIARIZER_WSL_USER: str = os.getenv("DIARIZER_WSL_USER", "root")
 DIARIZER_START_SCRIPT: str = os.getenv(
     "DIARIZER_START_SCRIPT",
-    "/mnt/f/claude-projetos/audio-agent/wsl-diarizer/start.sh",
+    "/mnt/f/claude-projetos/_infra/transcritor/wsl-diarizer/start.sh",
 )
 # Segundos de espera pelo /health do microsserviço durante o autostart.
 DIARIZER_STARTUP_TIMEOUT: float = float(os.getenv("DIARIZER_STARTUP_TIMEOUT", "30"))
