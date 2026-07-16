@@ -17,6 +17,12 @@ __pycache__/
 # Modelos baixados (ModelScope / 3D-Speaker)
 models/
 
+# Logs e artefatos de execução
+_server_*.log
+tmp-uvicorn-*.log
+_transcricao_*.txt
+_retest_*.txt
+
 # OS
 .DS_Store
 Thumbs.db

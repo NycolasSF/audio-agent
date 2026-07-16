@@ -147,19 +147,41 @@ class SQLiteRepo(TranscriptionRepo):
         finally:
             conn.close()
 
-    def list_jobs(self, limit: int = 1000, user_id: Optional[str] = None) -> List[dict]:
+    # Listagem leve: sem segments e com text truncado. Com word-level, 1000 jobs
+    # somavam ~150 MB de JSON e travavam servidor e navegador a cada load da UI.
+    _LIGHT_COLS = (
+        "id, status, title, source, file_path, model, device, timestamp, duration, "
+        "percent, substr(text, 1, 200) AS text, language, error, user_id, diarize, "
+        "speaker_names, input_language, created_at, updated_at"
+    )
+
+    def list_jobs(self, limit: int = 1000, user_id: Optional[str] = None,
+                  full: bool = False, offset: int = 0) -> List[dict]:
+        cols = "*" if full else self._LIGHT_COLS
         conn = get_connection()
         try:
             if user_id:
                 rows = conn.execute(
-                    "SELECT * FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT ?",
-                    (user_id, limit),
+                    f"SELECT {cols} FROM jobs WHERE user_id=? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (user_id, limit, offset),
                 ).fetchall()
             else:
                 rows = conn.execute(
-                    "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?", (limit,)
+                    f"SELECT {cols} FROM jobs ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                    (limit, offset),
                 ).fetchall()
             return [_row_to_dict(r) for r in rows]
+        finally:
+            conn.close()
+
+    def count_jobs(self, user_id: Optional[str] = None) -> int:
+        conn = get_connection()
+        try:
+            if user_id:
+                return conn.execute(
+                    "SELECT COUNT(*) FROM jobs WHERE user_id=?", (user_id,)
+                ).fetchone()[0]
+            return conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
         finally:
             conn.close()
 
@@ -201,6 +223,10 @@ class SQLiteRepo(TranscriptionRepo):
     def delete_job(self, job_id: str) -> None:
         conn = get_connection()
         try:
+            # FKs apontando para jobs(id): job_queue some junto; usage_minutes
+            # fica (contabiliza cota), só desvincula do job.
+            conn.execute("DELETE FROM job_queue WHERE job_id=?", (job_id,))
+            conn.execute("UPDATE usage_minutes SET job_id=NULL WHERE job_id=?", (job_id,))
             conn.execute("DELETE FROM jobs WHERE id=?", (job_id,))
             conn.commit()
         finally:

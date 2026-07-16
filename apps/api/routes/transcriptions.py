@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Form, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -13,8 +13,14 @@ router = APIRouter()
 
 
 @router.get("/transcriptions")
-async def get_transcriptions(current_user: dict = Depends(get_current_user)):
-    return state.repo.list_jobs(user_id=current_user["id"])
+async def get_transcriptions(
+    limit: int = Query(1000, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    current_user: dict = Depends(get_current_user),
+):
+    items = state.repo.list_jobs(limit=limit, user_id=current_user["id"], offset=offset)
+    total = state.repo.count_jobs(user_id=current_user["id"])
+    return JSONResponse(items, headers={"X-Total-Count": str(total)})
 
 
 @router.delete("/transcriptions/{tid}")

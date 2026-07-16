@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **Como USAR a tool (do mundo, em scripts):** este CLAUDE.md cobre só configuração e ajuste do servidor. Para o guia de uso (cliente, exemplos, modelos), veja `tool_audio_agent.md` nesta mesma pasta.
+
 ## Running the app
 
 ```bash
@@ -67,21 +69,44 @@ If diarization is disabled for every job (`diarize=False`), the microservice doe
 
 **Models** are pre-downloaded under `models/modelscope/` (~110 MB). The microservice uses `/mnt/f/claude-projetos/audio-agent/models/modelscope/` directly — do not delete this folder.
 
+## Transcription engine (faster-whisper)
+
+Transcription runs on **faster-whisper** (CTranslate2), not the reference `openai-whisper`. Same Whisper models, same text quality and word-level timestamps, but ~4-6x faster on GPU — measured **RTF ~0.11 for `medium` on an RTX 3060 Ti** (vs ~0.6 on openai-whisper alone, and >1.0 when two openai-whisper jobs split the card).
+
+`core/services/transcriber.py` keeps the same `transcribe_with_progress()` signature, so the worker is unchanged. It loads a `WhisperModel` (cached by `(model_name, device, compute_type)`) and drives progress by iterating the lazy `segments` generator — no more `tqdm` monkey-patching. All anti-hallucination params are preserved (`condition_on_previous_text=False`, capped temperature, `no_speech`/`logprob`/`compression_ratio` thresholds).
+
+**Long audio is transcribed in 30-min chunks** (decoded once via `decode_audio`, sliced as ndarray, timestamps re-offset). Reason: faster-whisper's `FeatureExtractor` computes the STFT of the whole audio at once and `np.fft.rfft` upcasts to float64/complex128 internally — a 3h file allocates ~6.7 GB of RAM and dies with `Unable to allocate X GiB`. Chunking caps the peak at ~1 GB regardless of duration. Language is detected on the first chunk and pinned for the rest; a word exactly on a chunk boundary may get clipped (cut on silence via VAD if that ever matters).
+
+The CTranslate2 weights are auto-downloaded from HuggingFace on first use (e.g. `medium` ~1.5 GB), cached under `~/.cache/huggingface` — independent of the `openai-whisper` cache.
+
 ## Environment
 
-Copy `.env.example` to `.env` to set the default Whisper model and diarizer URL:
+Copy `.env.example` to `.env`:
 
 ```env
 WHISPER_MODEL=base       # tiny | base | small | medium | large | large-v3
+WHISPER_COMPUTE_TYPE=    # blank = float16 on GPU / int8 on CPU. int8_float16 = faster + less VRAM, ~no quality loss
+WHISPER_VAD_FILTER=false # true = Silero VAD trims silence (faster + fewer hallucinations; may clip edge speech)
+WHISPER_INITIAL_PROMPT=  # optional decoding hint (domain vocabulary, etc.)
+
 DIARIZER_URL=http://127.0.0.1:9020   # WSL microservice (see above)
 DIARIZER_TIMEOUT=1800    # seconds — bump for very long audios
+DIARIZER_AUTOSTART=true  # false = run the WSL microservice manually
+
+# Worker pool
+GPU_UTIL_LIMIT=95        # worker sleeps between segments above this GPU util%. Lower it for a responsive desktop.
+CPU_UTIL_LIMIT=50        # same idea for CPU overflow workers
+CPU_WORKERS=1            # extra CPU-only workers. SET 0 for GPU batch jobs — see note below.
+MODEL_IDLE_TIMEOUT_SECONDS=60  # unload models from VRAM after this many idle seconds (0 = keep hot)
 ```
 
 The Whisper model can be changed at runtime via the UI without restarting the server.
 
+**Batch tuning (transcribing many files on the GPU, e.g. overnight):** set `CPU_WORKERS=0`. With faster-whisper a single GPU job already runs at RTF ~0.11; a parallel CPU worker only fights the GPU for the same files and *inflates* per-job RTF. One job at a time on the GPU is fastest — running two at once is what caused the >1.0 RTF on the old engine.
+
 ## Architecture
 
-**Hybrid Windows + WSL2** — audio capture and Whisper transcription run on Windows (WASAPI loopback via `pyaudiowpatch` is Windows-only). Speaker diarization runs in WSL2 (3D-Speaker has no working Windows wheel) as a microservice the app calls over HTTP.
+**Hybrid Windows + WSL2** — audio capture and faster-whisper transcription run on Windows (WASAPI loopback via `pyaudiowpatch` is Windows-only). Speaker diarization runs in WSL2 (3D-Speaker has no working Windows wheel) as a microservice the app calls over HTTP.
 
 ### Folder structure
 
@@ -103,7 +128,7 @@ audio-agent/
 │   ├── interfaces/                # repo.py + queue.py ABCs
 │   ├── services/
 │   │   ├── recorder.py            # WASAPI audio capture
-│   │   ├── transcriber.py         # Whisper wrapper with progress
+│   │   ├── transcriber.py         # faster-whisper wrapper with progress
 │   │   ├── audio_utils.py         # get_audio_duration()
 │   │   ├── diarizer.py            # HTTP client to WSL microservice
 │   │   └── downloader.py          # yt-dlp + httpx download helpers
@@ -126,7 +151,7 @@ audio-agent/
 ### Data flow
 
 1. **`core/services/recorder.py`** — `AudioRecorder` finds the system's default loopback WASAPI device and records in a background thread, saving to `recordings/recording_<timestamp>.wav`.
-2. **`core/services/transcriber.py`** — `transcribe_with_progress()` loads a Whisper model (cached in `_model_cache` by `(model_name, device)`), monkey-patches `whisper.transcribe.tqdm` to intercept progress, and calls `progress_cb(pct)` during transcription.
+2. **`core/services/transcriber.py`** — `transcribe_with_progress()` loads a faster-whisper `WhisperModel` (cached in `_model_cache` by `(model_name, device, compute_type)`) and iterates the lazy `segments` generator, calling `progress_cb(pct)` between segments (progress = `segment.end / audio_duration`). GPU/CPU throttle and user-cancellation are checked per segment.
 3. **`apps/worker/worker.py`** — `Worker` is a daemon thread that polls `infra/queue_sqlite.py` for pending jobs. For each job: marks processing → transcribes → marks done/error. Calls `progress_callbacks[job_id](pct)` from the worker thread (thread-safe via `asyncio.run_coroutine_threadsafe`).
 4. **`apps/api/`** — FastAPI server:
    - **`/ws` WebSocket** — recording control + real-time progress. On stop: creates job in SQLite, enqueues it, then polls `repo.get_job()` every 0.5s and forwards progress/completion to the client. 25s timeout heartbeat (ping/pong) detects unexpected recording drops.

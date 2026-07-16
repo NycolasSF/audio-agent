@@ -1630,6 +1630,9 @@
           </thead>
           <tbody id="t-body"></tbody>
         </table>
+        <div id="load-more-wrap" style="display: none; text-align: center; padding: 12px 0">
+          <button class="bulk-btn" id="load-more-btn" onclick="loadMore()">Carregar mais</button>
+        </div>
       </div>
     </main>
 
@@ -1825,7 +1828,7 @@
       let tabSources = [],
         tabCtx = null,
         tabSilent = true;
-      const pollingTimers = new Map(); // id → interval id
+      const pollingTimers = new Map(); // id → timeout id
 
       // === WAVEFORM ===
       const peaks = [14, 22, 32, 26, 40, 28, 18, 36, 24, 42, 20, 30, 16, 38];
@@ -1843,10 +1846,14 @@
       });
 
       // === AUDIO ===
+      // AudioContext único e reaproveitado: criar um por som vaza memória —
+      // cada contexto mantém thread e buffers de áudio vivos até ser fechado.
+      let _audioCtx = null;
       function tone(f, d, t = "sine", v = 0.22) {
         try {
-          const c = new AudioContext(),
-            o = c.createOscillator(),
+          const c = (_audioCtx ||= new AudioContext());
+          if (c.state === "suspended") c.resume();
+          const o = c.createOscillator(),
             g = c.createGain();
           o.connect(g);
           g.connect(c.destination);
@@ -2609,52 +2616,56 @@
       }
 
       // === POLLING ===
+      // setTimeout encadeado (não setInterval): o próximo poll só é agendado
+      // quando o atual termina. Com setInterval, o payload grande do "done"
+      // deixava vários fetches em voo e cada um tocava o som de conclusão.
       function startPolling(id) {
-        // Cancel any pre-existing interval for this id
+        // Cancel any pre-existing timer for this id
         const prev = pollingTimers.get(id);
-        if (prev) clearInterval(prev);
-        const iv = setInterval(async () => {
+        if (prev) clearTimeout(prev);
+        const tick = async () => {
           try {
             const r = await apiFetch(`/transcriptions/${id}/status`);
             const j = await r.json();
             // Show live progress while processing
             if (typeof j.percent === "number") updateProg(id, j.percent);
             if (j.status === "done") {
-              clearInterval(iv);
               pollingTimers.delete(id);
               updateProg(id, 100);
               sndDone();
               notify("Transcrição concluída", autoTitle(j.text, "") || j.text?.slice(0, 80) || "");
               if (j.error) toast(j.error, true);
-              completeRow(j);
+              completeRow({ ...j, _full: true });
+              return;
             } else if (j.status === "stuck") {
               // Server restarted mid-transcription — item is orphaned, show error
-              clearInterval(iv);
               pollingTimers.delete(id);
               errorRow(id, "Servidor reiniciado durante a transcrição. Re-transcreva para tentar novamente.");
               // Also update store so openDetail can open (marks as having an error)
               const d = store.get(id);
               if (d) { d.text = ""; d.error = "Servidor reiniciado. Re-transcreva."; }
+              return;
             } else if (j.status === "cancelled") {
-              clearInterval(iv);
               pollingTimers.delete(id);
               cancelledRow(id);
+              return;
             }
           } catch (e) {}
-        }, 1500);
-        pollingTimers.set(id, iv);
+          pollingTimers.set(id, setTimeout(tick, 1500));
+        };
+        pollingTimers.set(id, setTimeout(tick, 1500));
       }
 
 
 
       // === TABLE ROWS ===
-      function createRow(msg) {
+      function createRow(msg, append = false) {
         if (store.has(msg.id)) return; // avoid duplicates from history reload
         totalCount++;
+        if (!append && histTotal) histTotal++; // linha nova de verdade (não histórico)
         emptyState.style.display = "none";
         tableWrap.style.display = "";
-        countEl.textContent =
-          totalCount + (totalCount === 1 ? " registro" : " registros");
+        updateCountLabel();
 
         // Default title: filename (without ext) for uploads, else timestamp placeholder
         const srcName = msg.source || msg.filename || "";
@@ -2716,7 +2727,10 @@
         </div>
       </div>
     </td>`;
-        tbody.prepend(tr);
+        // Histórico (append) vai para baixo — lista vem DESC, mais novo fica no topo;
+        // transcrições novas ao vivo (prepend) entram no topo.
+        if (append) tbody.appendChild(tr);
+        else tbody.prepend(tr);
       }
 
       function updateProg(id, pct) {
@@ -2803,7 +2817,7 @@
           if (j.where === "queue") {
             cancelledRow(id);
             const t = pollingTimers.get(id);
-            if (t) { clearInterval(t); pollingTimers.delete(id); }
+            if (t) { clearTimeout(t); pollingTimers.delete(id); }
           } else {
             // worker — aguarda próxima callback de progresso abortar
             toast("Cancelando… aguarde o término do segmento atual.");
@@ -2815,25 +2829,67 @@
       }
 
       // === HISTORY ===
+      // Paginado: só PAGE_SIZE por vez; o resto vem do banco sob demanda
+      // pelo botão "Carregar mais".
+      const PAGE_SIZE = 10;
+      let histTotal = 0; // total de registros no servidor (header X-Total-Count)
+
+      function updateCountLabel() {
+        countEl.textContent = histTotal > totalCount
+          ? `${totalCount} de ${histTotal} registros`
+          : totalCount + (totalCount === 1 ? " registro" : " registros");
+      }
+
+      function renderHistoryItem(item) {
+        createRow(item, true);
+        if (item.status === "pending" || item.status === "processing") {
+          // Really in-flight (or stuck after a server restart) — poll resolves it.
+          // Nunca decidir por texto vazio: jobs done sem texto (áudio em silêncio)
+          // entravam aqui e cada um tocava som + notificação a cada reconexão.
+          startPolling(item.id);
+        } else if (item.status === "cancelled") {
+          cancelledRow(item.id);
+        } else {
+          // done or error — show final state
+          completeRow(item, item.title || autoTitle(item.text, item.timestamp));
+        }
+      }
+
+      async function fetchHistoryPage(offset) {
+        const r = await apiFetch(`/transcriptions?limit=${PAGE_SIZE}&offset=${offset}`);
+        if (!r.ok) return null;
+        histTotal = parseInt(r.headers.get("X-Total-Count"), 10) || histTotal;
+        return r.json();
+      }
+
+      function updateLoadMore() {
+        const rest = histTotal - totalCount;
+        document.getElementById("load-more-wrap").style.display = rest > 0 ? "" : "none";
+        if (rest > 0)
+          document.getElementById("load-more-btn").textContent = `Carregar mais (${rest})`;
+        updateCountLabel();
+      }
+
       async function loadHistory() {
         try {
-          const r = await apiFetch("/transcriptions");
-          if (!r.ok) return;
-          const items = await r.json();
-          items.forEach((item) => {
-            createRow(item);
-            if (item.text || item.error) {
-              // Completed or errored — show final state
-              completeRow(item, item.title || autoTitle(item.text, item.timestamp));
-            } else {
-              // Empty text and no error = possibly stuck (server restarted mid-transcription)
-              // Start polling so it detects "stuck" status and shows error
-              startPolling(item.id);
-            }
-          });
+          const items = await fetchHistoryPage(0);
+          if (!items) return;
+          items.forEach(renderHistoryItem);
+          updateLoadMore();
         } catch (e) {
           console.warn("history error", e);
         }
+      }
+
+      async function loadMore() {
+        const btn = document.getElementById("load-more-btn");
+        btn.disabled = true;
+        try {
+          // offset = linhas já na tela (novas ao vivo entram no topo da ordem DESC)
+          const items = await fetchHistoryPage(totalCount);
+          if (items) { items.forEach(renderHistoryItem); updateLoadMore(); }
+        } catch (e) {}
+        btn.disabled = false;
       }
 
       // === SPEAKER DIARIZATION ===
@@ -2869,13 +2925,15 @@
 
       // === DETAIL PANEL ===
       let currentDetailId = null;
-      function openDetail(id) {
-        const d = store.get(id);
+      async function openDetail(id) {
+        let d = store.get(id);
         if (!d) return;
         if (!d.text && !d.error) {
           toast('Transcrição ainda não concluída', true);
           return;
         }
+        await ensureFull(id);
+        d = store.get(id);
         currentDetailId = id;
         document.getElementById('detail-title').value = d.title || d._defaultTitle || '';
         document.getElementById('detail-model-sel').value = d.model || 'base';
@@ -3050,14 +3108,16 @@
       }
       async function deleteRow(id) {
         if (!confirm("Excluir esta transcrição?")) return;
-        await apiFetch(`/transcriptions/${id}`, { method: "DELETE" }).catch(
-          () => {},
+        const r = await apiFetch(`/transcriptions/${id}`, { method: "DELETE" }).catch(
+          () => null,
         );
+        if (!r || !r.ok) { toast("Não foi possível excluir", true); return; }
         document.getElementById("row-" + id)?.remove();
         store.delete(id);
         totalCount--;
+        if (histTotal) histTotal--;
+        updateLoadMore();
         const n = store.size;
-        countEl.textContent = n + (n === 1 ? " registro" : " registros");
         if (n === 0) {
           emptyState.style.display = "";
           tableWrap.style.display = "none";
@@ -3109,12 +3169,13 @@
 
       // ── Bulk downloads ─────────────────────────────────────────────────────
 
-      function bulkDl(fmt) {
+      async function bulkDl(fmt) {
         const ids = getSelectedIds().filter(id => {
           const d = getData(id);
           return d && d.text;
         });
         if (!ids.length) { toast("Nenhuma transcrição concluída selecionada", true); return; }
+        await Promise.all(ids.map(ensureFull));
 
         if (fmt === "txt") {
           const lines = ids.map(id => {
@@ -3169,10 +3230,13 @@
             if (r.ok) {
               document.getElementById("row-" + id)?.remove();
               store.delete(id);
+              totalCount--;
+              if (histTotal) histTotal--;
               ok++;
             }
           } catch (e) { /* continue */ }
         }
+        updateLoadMore();
         updateBulkBar();
         const tbody = document.getElementById("t-body");
         document.getElementById("table-wrap").style.display = tbody.children.length ? "" : "none";
@@ -3180,13 +3244,25 @@
       }
 
       // === COPY / EXPORT ===
-      function copyText(id) {
+      async function copyText(id) {
+        await ensureFull(id);
         const d = store.get(id);
         if (!d || !d.text) return;
         navigator.clipboard.writeText(d.text).then(() => toast("Copiado!"));
       }
       function getData(id) {
         return store.get(id);
+      }
+      // O histórico chega leve (sem segments, text truncado em 200 chars).
+      // Busca o job completo sob demanda na primeira vez que for preciso.
+      async function ensureFull(id) {
+        const d = store.get(id);
+        if (!d || d._full || d.segments) return;
+        try {
+          const r = await apiFetch(`/transcriptions/${id}/status`);
+          const j = await r.json();
+          if (j.text != null || j.error) store.set(id, { ...store.get(id), ...j, _full: true });
+        } catch (e) {}
       }
       function dlBlob(content, name, mime) {
         const a = document.createElement("a");
@@ -3195,7 +3271,8 @@
         a.click();
         URL.revokeObjectURL(a.href);
       }
-      function dlTxt(id) {
+      async function dlTxt(id) {
+        await ensureFull(id);
         const d = getData(id);
         if (!d) return;
         dlBlob(
@@ -3204,7 +3281,8 @@
           "text/plain",
         );
       }
-      function dlMd(id) {
+      async function dlMd(id) {
+        await ensureFull(id);
         const d = getData(id);
         if (!d) return;
         let md = `---\ndata: ${d.timestamp}\nduracao: ${d.duration}s\nidioma: ${(d.language || "?").toUpperCase()}\nmodelo: ${d.model}\n---\n\n# Transcrição\n\n${d.text || ""}\n`;
@@ -3216,7 +3294,8 @@
         }
         dlBlob(md, `${safeFilename(d.title, id)}.md`, "text/markdown");
       }
-      function dlVtt(id) {
+      async function dlVtt(id) {
+        await ensureFull(id);
         const d = getData(id);
         if (!d || !d.segments?.length) {
           toast("Sem segmentos VTT", true);
@@ -3228,7 +3307,8 @@
         });
         dlBlob(v, `${safeFilename(d.title, id)}.vtt`, "text/vtt");
       }
-      function dlPdf(id) {
+      async function dlPdf(id) {
+        await ensureFull(id);
         const d = getData(id);
         if (!d) return;
         const txt = (d.text || "").replace(/</g, "&lt;").replace(/>/g, "&gt;");

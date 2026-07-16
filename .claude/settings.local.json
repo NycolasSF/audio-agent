@@ -21,12 +21,28 @@
       "Bash(git -C F:/claude-projetos/audio-agent log --all -p -S \"suppressLocalAudioPlayback\" -- static/index.html)"
     ]
   },
-  "disabledMcpjsonServers": [
-    "workspace-mcp"
-  ],
   "enabledMcpjsonServers": [
     "scrapling",
     "local-deep-research",
-    "gpt-researcher"
+    "gpt-researcher",
+    "skillspector",
+    "context7",
+    "markitdown",
+    "n8n-mcp",
+    "open-design"
+  ],
+  "disabledMcpjsonServers": [
+    "workspace-mcp",
+    "epidemic-sound",
+    "n8n",
+    "scrapling",
+    "local-deep-research",
+    "gpt-researcher",
+    "playwright",
+    "skillspector",
+    "context7",
+    "markitdown",
+    "n8n-mcp",
+    "open-design"
   ]
 }

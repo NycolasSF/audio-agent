@@ -62,7 +62,7 @@ async def search_transcriptions(
     """
     _require_localhost(request)
     q_lower = q.lower()
-    jobs = state.repo.list_jobs(limit=500)
+    jobs = state.repo.list_jobs(limit=500, full=True)  # busca em conteúdo precisa do text inteiro
     results = []
 
     for j in jobs:

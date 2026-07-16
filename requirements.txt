@@ -3,7 +3,7 @@ rich
 fastapi
 uvicorn[standard]
 pyaudiowpatch
-openai-whisper
+faster-whisper
 python-dotenv
 torch
 python-multipart

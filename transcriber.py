@@ -1,83 +1,20 @@
-import os
+# -*- coding: utf-8 -*-
+"""DEPRECADO — engine v1 (openai-whisper) substituída por faster-whisper.
 
-import importlib
+Este módulo era a engine ORIGINAL de transcrição (openai-whisper + monkey-patch
+de tqdm para progresso). Foi substituído por `core/services/transcriber.py`
+(faster-whisper / CTranslate2). Para não reintroduzir Whisper local — proibido no
+hub, pois a GPU é única e dois modelos competindo dão CUDA out of memory (ver
+CLAUDE.md) — o código antigo foi removido e este arquivo apenas re-exporta a
+engine atual.
 
-import tqdm as _tqdm_pkg
-import torch
-import whisper
-
-_wt = importlib.import_module("whisper.transcribe")
-
-_model_cache: dict = {}
-
-
-def get_device() -> str:
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
-
-def get_model(model_name: str, device: str):
-    key = (model_name, device)
-    if key not in _model_cache:
-        print(f"[Whisper] Carregando modelo '{model_name}' em {device.upper()}...")
-        _model_cache[key] = whisper.load_model(model_name, device=device)
-        print(f"[Whisper] Pronto.")
-    return _model_cache[key]
-
-
-def transcribe_with_progress(
-    file_path: str,
-    model_name: str = "base",
-    device: str = "cpu",
-    progress_cb=None,
-    language: str | None = None,
-) -> dict:
-    if not os.path.exists(file_path):
-        return {"success": False, "text": "", "segments": [], "error": "Arquivo não encontrado"}
-
-    try:
-        model = get_model(model_name, device)
-        original_tqdm_module = _wt.tqdm  # whisper does: import tqdm; tqdm.tqdm(...)
-
-        class _ProgressTqdm(_tqdm_pkg.tqdm):
-            def update(self, n=1):
-                super().update(n)
-                if progress_cb and self.total:
-                    pct = int(min(self.n / self.total * 100, 99))
-                    progress_cb(pct)
-
-        class _TqdmProxy:
-            tqdm = _ProgressTqdm
-
-        _wt.tqdm = _TqdmProxy()
-        try:
-            opts = {"verbose": False, "word_timestamps": True}
-            if language:
-                opts["language"] = language
-            result = model.transcribe(file_path, **opts)
-        finally:
-            _wt.tqdm = original_tqdm_module
-
-        return {
-            "success": True,
-            "text": result["text"].strip(),
-            "language": result.get("language", "?"),
-            "segments": [
-                {
-                    "start": round(s["start"], 3),
-                    "end": round(s["end"], 3),
-                    "text": s["text"].strip(),
-                    "words": [
-                        {
-                            "word": w["word"],
-                            "start": round(w["start"], 3),
-                            "end": round(w["end"], 3),
-                            "probability": round(float(w.get("probability", 1.0)), 4),
-                        }
-                        for w in s.get("words", [])
-                    ],
-                }
-                for s in result.get("segments", [])
-            ],
-        }
-    except Exception as e:
-        return {"success": False, "text": "", "segments": [], "error": str(e)}
+Nada deve importar este módulo diretamente. Use `core.services.transcriber`
+(dentro do servidor) ou, de qualquer outro script, o cliente HTTP do audio-agent:
+`_infra/audio-agent/clients/audio_agent_client.py`.
+"""
+from core.services.transcriber import (  # noqa: F401
+    get_device,
+    get_model,
+    transcribe_with_progress,
+    unload_models,
+)
