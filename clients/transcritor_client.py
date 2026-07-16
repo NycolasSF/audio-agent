@@ -146,14 +146,50 @@ def transcribe_file(path: str, model: str = "large-v3", language: str = "pt",
     return _get_job(token, tid, api) or st
 
 
-def extract_wav(src: str, dst: str, offset: float = 0.0) -> str:
+def extract_wav(src: str, dst: str, offset: float = 0.0, duration: float | None = None) -> str:
     """Extrai WAV 16 kHz mono via ffmpeg (formato ideal para o Whisper)."""
     cmd = ["ffmpeg", "-y", "-loglevel", "error"]
     if offset > 0:
         cmd += ["-ss", str(offset)]
+    if duration is not None:
+        cmd += ["-t", str(duration)]
     cmd += ["-i", src, "-ar", "16000", "-ac", "1", dst]
     subprocess.run(cmd, capture_output=True, check=True)
     return dst
+
+
+def transcribe_span(path: str, start: float, end: float, model: str = "large-v3",
+                    language: str = "pt", api: str = API, token: str | None = None,
+                    timeout: int = 1800, poll: float = 2.0, progress_cb=None,
+                    tmpdir: str | None = None) -> dict:
+    """Retranscreve SÓ o trecho [start, end] (segundos) de uma mídia.
+
+    Uso típico: revisão de qualidade — a transcrição saiu num modelo médio e um
+    intervalo ficou ruim (words com probability baixa); corta-se o trecho via
+    ffmpeg, retranscreve com modelo maior e substituem-se os segments daquele
+    intervalo. Os timestamps retornados já vêm REBASEADOS para o arquivo
+    original (start somado), prontos para o merge. Dica: dê ~2s de folga de
+    cada lado do trecho ruim — contexto melhora o Whisper.
+    """
+    if end <= start:
+        raise ValueError(f"span inválido: start={start} end={end}")
+    tmpdir = tmpdir or os.path.dirname(os.path.abspath(path))
+    wav = os.path.join(tmpdir, f"_aa_span_{uuid.uuid4().hex[:8]}.wav")
+    try:
+        extract_wav(path, wav, offset=start, duration=end - start)
+        job = transcribe_file(wav, model, language, False, api, token, timeout, poll, progress_cb)
+    finally:
+        try:
+            os.remove(wav)
+        except OSError:
+            pass
+    for seg in job.get("segments") or []:
+        seg["start"] = round(seg["start"] + start, 3)
+        seg["end"] = round(seg["end"] + start, 3)
+        for w in seg.get("words") or []:
+            w["start"] = round(w["start"] + start, 3)
+            w["end"] = round(w["end"] + start, 3)
+    return job
 
 
 def transcribe_media(path: str, model: str = "large-v3", language: str = "pt",
