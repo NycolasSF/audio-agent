@@ -1,0 +1,35 @@
+# Dicionário do Flow — um termo por linha (# = comentário).
+# Vai como initial_prompt do Whisper em cada ditado: dica de vocabulário,
+# não regra. Máximo ~200 tokens no total; termos demais diluem o efeito.
+INSS de Obras
+Reforma Tributária
+RET
+CNO
+SERO
+aferição de obra
+regularização de obra
+construção civil
+contabilidade imobiliária
+CalcProObra
+Márcio Medeiros
+Márcio Medeiros Educação
+Nycolas
+Praqt
+SendFlow
+AstronMembers
+Hotmart
+Elementor
+WordPress
+ChromaDB
+Whisper
+transcritor
+Claude Code
+lançamento
+imersão
+CUB
+habite-se
+averbação
+ART
+CREA
+GFIP
+eSocial

@@ -1,0 +1,6 @@
+# Deps do cliente Flow (o servidor tem as próprias em ../requirements.txt).
+# pyaudiowpatch e tkinter já vêm do ambiente do transcritor / Python padrão.
+keyboard
+pystray
+Pillow
+pycaw

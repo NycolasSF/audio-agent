@@ -105,6 +105,10 @@ def init_db() -> None:
         if "input_language" not in existing_cols:
             conn.execute("ALTER TABLE jobs ADD COLUMN input_language TEXT DEFAULT 'pt'")
             conn.commit()
+        if "initial_prompt" not in existing_cols:
+            # Dica de vocabulário por job (usada pelo ditado /local/dictate)
+            conn.execute("ALTER TABLE jobs ADD COLUMN initial_prompt TEXT")
+            conn.commit()
 
         # is_admin column for users table
         user_cols = [r[1] for r in conn.execute("PRAGMA table_info(users)").fetchall()]

@@ -11,6 +11,10 @@ python main.py
 # Access at http://localhost:8020
 ```
 
+## Flow — ditado por voz (cliente estilo Wispr)
+
+`flow/flow.py` é um tray app client-side: segure **Ctrl+Win**, fale, solte — o texto é digitado no app ativo. Grava o microfone, muta o som do sistema durante a gravação (pycaw; `FLOW_MUTE_SYSTEM=false` desliga), envia ao `POST /local/dictate` (síncrono, sem auth, só 127.0.0.1; o job passa pela fila normal — o pool segue único dono da GPU — e é apagado ao final: não entra no histórico nem na quota) e digita o resultado via `keyboard.write` (clipboard intocado). Modelo trocável na bandeja (small/medium/large-v3; default `FLOW_MODEL=medium`). Dicionário: `flow/vocab.txt` vira `initial_prompt` por job (coluna `initial_prompt` em `jobs`). Subir: `flow/start-flow.bat` (autostart: atalho em `shell:startup`). Deps próprias em `flow/requirements.txt`. Crash duro deixa traceback em `flow/flow-crash.log`.
+
 ## First-time migration (from v1 JSON)
 
 If you have an existing `transcriptions/data.json`, migrate it to SQLite before starting:

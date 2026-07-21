@@ -100,6 +100,7 @@ class Worker(threading.Thread):
                     language=None if input_language == "auto" else input_language,
                     gpu_limit=self.gpu_limit,
                     cpu_limit=self.cpu_limit,
+                    initial_prompt=job.get("initial_prompt"),
                 )
 
             if result["success"] and job.get("diarize"):

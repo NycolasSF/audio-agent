@@ -4,9 +4,16 @@ Usados pelo Claude Code e outras ferramentas internas para consultar transcriç�
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+import asyncio
+import os
+import uuid
+import wave
+from datetime import datetime
+
+from fastapi import APIRouter, File, Form, HTTPException, Query, Request, UploadFile
 
 from apps.api import state
+from core import settings
 
 router = APIRouter(prefix="/local", tags=["local"])
 
@@ -48,6 +55,89 @@ async def get_transcription(tid: str, request: Request):
     if not job or job.get("status") != "done":
         raise HTTPException(status_code=404, detail="Transcrição não encontrada ou ainda em andamento")
     return job
+
+
+@router.post("/dictate")
+async def dictate(
+    request: Request,
+    file: UploadFile = File(...),
+    model: str = Form("medium"),
+    language: str = Form("pt"),
+    initial_prompt: str = Form(""),
+):
+    """Ditado síncrono (cliente Flow): transcreve e devolve o texto na resposta.
+
+    Sem auth (localhost). O job passa pela fila normal — o pool segue único dono
+    da GPU — e é apagado ao final: ditado não é histórico, não conta quota.
+    """
+    _require_localhost(request)
+    if model not in settings.VALID_MODELS:
+        model = "medium"
+
+    card_id = "dict" + uuid.uuid4().hex[:8]
+    os.makedirs(settings.RECORDINGS_DIR, exist_ok=True)
+    dest = os.path.join(settings.RECORDINGS_DIR, f"dictate_{card_id}.wav")
+    with open(dest, "wb") as out:
+        out.write(await file.read())
+
+    try:
+        with wave.open(dest) as w:
+            duration = w.getnframes() / (w.getframerate() or 1)
+    except Exception:
+        duration = 0.0
+
+    state.repo.create_job({
+        "id": card_id,
+        "status": "pending",
+        "model": model,
+        "device": state.DEVICE,
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
+        "duration": duration,
+        "file_path": dest,
+        "title": "",
+        "source": "flow-dictate",
+        "user_id": None,  # sem dono: fora do histórico da UI e da quota
+        "diarize": 0,
+        "input_language": language,
+        "initial_prompt": initial_prompt or None,
+        "created_at": datetime.now().isoformat(),
+    })
+    state.queue.enqueue(card_id)
+
+    # ponytail: espera na própria request (ditado dura segundos). Se um lote
+    # longo ocupar a GPU, o ditado espera atrás dele — fila única por design;
+    # prioridade na fila se um dia incomodar.
+    job = None
+    try:
+        loop = asyncio.get_event_loop()
+        t0 = loop.time()
+        while True:
+            await asyncio.sleep(0.15)
+            job = state.repo.get_job(card_id)
+            if job is None or job["status"] in ("done", "error", "cancelled"):
+                break
+            if loop.time() - t0 > 180:
+                state.cancelled_ids.add(card_id)
+                raise HTTPException(status_code=504, detail="Timeout no ditado (motor ocupado?)")
+
+        if job is None or job["status"] != "done" or job.get("error"):
+            detail = (job or {}).get("error") or "Falha na transcrição"
+            raise HTTPException(status_code=500, detail=detail)
+
+        return {
+            "text": (job["text"] or "").strip(),
+            "language": job.get("language"),
+            "duration": duration,
+        }
+    finally:
+        try:
+            os.remove(dest)
+        except OSError:
+            pass
+        try:
+            state.repo.delete_job(card_id)
+        except Exception:
+            pass
 
 
 @router.get("/search")

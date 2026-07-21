@@ -36,11 +36,13 @@ class SQLiteRepo(TranscriptionRepo):
                 INSERT INTO jobs
                   (id, status, title, source, file_path, model, device,
                    timestamp, duration, percent, text, language, segments,
-                   error, user_id, diarize, speaker_names, input_language, created_at, updated_at)
+                   error, user_id, diarize, speaker_names, input_language,
+                   initial_prompt, created_at, updated_at)
                 VALUES
                   (:id, :status, :title, :source, :file_path, :model, :device,
                    :timestamp, :duration, :percent, :text, :language, :segments,
-                   :error, :user_id, :diarize, :speaker_names, :input_language, :created_at, :updated_at)
+                   :error, :user_id, :diarize, :speaker_names, :input_language,
+                   :initial_prompt, :created_at, :updated_at)
                 """,
                 {
                     "id": data["id"],
@@ -61,6 +63,7 @@ class SQLiteRepo(TranscriptionRepo):
                     "diarize": int(data.get("diarize", 0)),
                     "speaker_names": None,
                     "input_language": data.get("input_language", "pt"),
+                    "initial_prompt": data.get("initial_prompt"),
                     "created_at": data.get("created_at", now),
                     "updated_at": now,
                 },

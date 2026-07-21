@@ -20,6 +20,7 @@ models/
 # Logs e artefatos de execução
 _server_*.log
 tmp-uvicorn-*.log
+flow/flow-crash.log
 _transcricao_*.txt
 _retest_*.txt
 
