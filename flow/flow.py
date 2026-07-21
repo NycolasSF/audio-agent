@@ -380,7 +380,23 @@ def start_tray(flow: Flow, root: tk.Tk) -> None:
     threading.Thread(target=icon.run, daemon=True).start()
 
 
+_instance_lock = None
+
+
+def _ensure_single_instance() -> None:
+    """Trava de instância única via porta local — dois Flows = hotkey em dobro."""
+    global _instance_lock
+    import socket
+    _instance_lock = socket.socket()
+    try:
+        _instance_lock.bind(("127.0.0.1", 8021))
+    except OSError:
+        print("[Flow] Já existe um Flow rodando — saindo.")
+        sys.exit(0)
+
+
 def main() -> None:
+    _ensure_single_instance()
     # Crash duro (COM, Tk, hook nativo) não deixa traceback no console — o
     # faulthandler despeja o estado das threads em flow-crash.log.
     import faulthandler
