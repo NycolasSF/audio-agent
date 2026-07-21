@@ -32,9 +32,6 @@ JWT_ALGORITHM: str = "HS256"
 JWT_EXPIRE_DAYS: int = int(os.getenv("JWT_EXPIRE_DAYS", "30"))
 DEFAULT_QUOTA_MINUTES: float = float(os.getenv("DEFAULT_QUOTA_MINUTES", "60.0"))
 
-# ── Dev ─────────────────────────────────────────────────────────────────────
-DEV_AUTO_LOGIN: bool = os.getenv("DEV_AUTO_LOGIN", "false").lower() == "true"
-
 # ── Diarização — microsserviço 3D-Speaker no WSL2 ──────────────────────────
 # O pipeline ModelScope segfauta no Python nativo do Windows, então a
 # diarização roda dentro do WSL2 (Linux + GPU). Este app fala HTTP com ele.

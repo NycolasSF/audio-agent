@@ -42,7 +42,7 @@ Três funções de entrada:
 | `transcribe_media(path, ...)` | **qualquer** mídia; se a extensão não for aceita (ex.: `.mov`), extrai um WAV 16 kHz mono via ffmpeg antes de subir |
 | `transcribe_span(path, start, end, ...)` | retranscreve SÓ o trecho `[start, end]` (segundos) — para reparar um intervalo ruim de uma transcrição prévia com modelo maior; timestamps voltam rebaseados para o arquivo original |
 
-Na dúvida, use `transcribe_media` — ele cobre os dois casos comuns. O fluxo de revisão (medium primeiro, reparo por span) é orquestrado pela sonda `audio-agent` (`AGENTS/audio-agent/prompt.md`).
+Na dúvida, use `transcribe_media` — ele cobre os dois casos comuns. O fluxo de revisão (medium primeiro, reparo por span) é orquestrado pela sonda `audiosmith` (`AGENTS/audiosmith/prompt.md`).
 
 ### Parâmetros
 

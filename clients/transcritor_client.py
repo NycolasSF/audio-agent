@@ -38,9 +38,37 @@ API = os.getenv("TRANSCRITOR_URL", "http://localhost:8020")
 # Extensões que o /upload aceita direto (espelha core/settings ALLOWED_EXTENSIONS).
 _DIRECT_EXTS = {".mp3", ".mp4", ".wav", ".m4a", ".ogg", ".webm", ".flac"}
 
+_ENV_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env")
+
+
+def _env_var(key: str) -> str | None:
+    """Lê var de ambiente, com fallback pro .env do transcritor (stdlib, sem dotenv)."""
+    if key in os.environ:
+        return os.environ[key]
+    try:
+        with open(_ENV_PATH, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith(key + "="):
+                    return line.split("=", 1)[1].strip()
+    except FileNotFoundError:
+        pass
+    return None
+
 
 def login(api: str = API) -> str:
-    req = urllib.request.Request(api + "/auth/dev-login", data=b"", method="POST")
+    email = _env_var("TRANSCRITOR_EMAIL")
+    password = _env_var("TRANSCRITOR_PASSWORD")
+    if not email or not password:
+        raise RuntimeError(
+            "TRANSCRITOR_EMAIL/TRANSCRITOR_PASSWORD não definidas "
+            f"(defina no ambiente ou em {_ENV_PATH})"
+        )
+    body = json.dumps({"email": email, "password": password}).encode()
+    req = urllib.request.Request(
+        api + "/auth/login", data=body,
+        headers={"Content-Type": "application/json"}, method="POST",
+    )
     with urllib.request.urlopen(req, timeout=30) as r:
         return json.loads(r.read().decode())["access_token"]
 

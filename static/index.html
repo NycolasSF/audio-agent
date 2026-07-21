@@ -2123,12 +2123,8 @@
 
       async function checkAuthOnStart() {
         if (!getToken()) {
-          // Tenta dev-login automático (só funciona se DEV_AUTO_LOGIN=true no servidor)
-          try {
-            const dr = await fetch("/auth/dev-login", { method: "POST" });
-            if (dr.ok) { const dd = await dr.json(); setToken(dd.access_token); }
-            else { showAuthOverlay(); return; }
-          } catch (e) { showAuthOverlay(); return; }
+          showAuthOverlay();
+          return;
         }
         try {
           const r = await fetch("/me", { headers: authHeaders() });

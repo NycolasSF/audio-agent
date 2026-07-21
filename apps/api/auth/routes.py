@@ -55,20 +55,6 @@ async def login(body: LoginBody):
     )
 
 
-@router.post("/auth/dev-login", response_model=TokenResponse)
-async def dev_login():
-    """Auto-login sem senha — só funciona com DEV_AUTO_LOGIN=true no .env."""
-    if not settings.DEV_AUTO_LOGIN:
-        raise HTTPException(status_code=403, detail="Não disponível em produção")
-    user_repo = _user_repo()
-    users = user_repo.get_all_users()
-    admin = next((u for u in users if u.get("is_admin")), None)
-    if not admin:
-        raise HTTPException(status_code=404, detail="Nenhum admin encontrado")
-    token = create_access_token(admin["id"], admin["email"])
-    return TokenResponse(access_token=token, expires_in=settings.JWT_EXPIRE_DAYS * 86400)
-
-
 # /me and /usage são definidos em main.py após deps estarem disponíveis.
 # to avoid importing deps.py before it exists during incremental build.
 # Placed here for organization via include_router in main.py.
